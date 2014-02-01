@@ -75,6 +75,12 @@ type IKVMTypeBuilder(name, atts) =
     
     member __.Return(x) = fun (u : Universe, tb : TypeBuilder) -> x
 
+    member __.For(xs, f) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            for x in xs do
+                let define = f(x)
+                define(u, tb)
+
     member __.Run(f) =   
         fun (universe : Universe, moduleBuilder : ModuleBuilder) ->
             let typeBuilder = moduleBuilder.DefineType(name, atts)
@@ -101,7 +107,12 @@ type IKVMAssemblyBuilder(assemblyPath) =
 
     member __.Return(x) = x
 
-    member __.Zero() = () 
+    //member __.Zero() = () 
+
+    member __.For(xs, f) = 
+        for x in xs do
+            f(x)
+            //define() |> ignore
 
     member __.Run(f) =   
         assemblyBuilder
@@ -125,11 +136,15 @@ let publicDefaultEmptyConstructor (u : Universe, tb : TypeBuilder) =
 (*
  * Methods
  *)
-let publicMethod name (returnType : System.Type) (parameterTypes : #seq<System.Type>) = 
+let publicMethod<'TReturnType> name (parameterTypes : seq<System.Type>) = 
+    let returnType = 
+        match typeof<'TReturnType> with 
+        | t when t = typeof<unit> -> typeof<System.Void>
+        | t -> t
     IKVMMethodBuilder(name, MethodAttributes.Public, returnType, parameterTypes |> Seq.toArray)
 
-let publicVoidMethod name (parameterTypes : #seq<System.Type>) = 
-    publicMethod name typeof<System.Void> parameterTypes
+let publicVoidMethod name parameterTypes = 
+    publicMethod<unit> name parameterTypes
     
 let privateStaticMethod methodName returnType parameters = 
     IKVMMethodBuilder(methodName, MethodAttributes.Private ||| MethodAttributes.Static, returnType, parameters)
