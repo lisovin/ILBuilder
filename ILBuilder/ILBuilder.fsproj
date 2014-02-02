@@ -47,6 +47,8 @@
   <ItemGroup>
     <Compile Include="IKVM.fs" />
     <Compile Include="ILBuilder.fs" />
+    <Compile Include="ProvidedTypes.fs" />
+    <Compile Include="MethodProvider.fs" />
     <None Include="Sandbox.fsx" />
     <None Include="Disassemble.fsx" />
   </ItemGroup>

@@ -165,7 +165,7 @@ type EmitBuilder() =
 
     [<CustomOperation("br_s", MaintainsVariableSpace = true)>]
     member __.br_s(f, label) = f +> emitLabel OpCodes.Br_S label 
-
+    (*
     [<CustomOperation("call", MaintainsVariableSpace = true)>]
     member __.call(f, targetType : Type, methodName, [<ParamArray>] optionalParameterTypes : Type[]) = 
         if targetType = null 
@@ -176,13 +176,13 @@ type EmitBuilder() =
             then InvalidOperationException(sprintf "Method '%s' with parameters '%s' is not defined on type '%s'" methodName targetType.Name (optionalParameterTypes |> Seq.map (fun t -> t.Name) |> Seq.toString ", ")) |> raise
             else
             f +> emitMethodInfo OpCodes.Call mi
-    
+    *)
     [<CustomOperation("call", MaintainsVariableSpace = true)>]
     member __.call (f, methodInfo : System.Reflection.MethodInfo)=     
         if methodInfo = null then ArgumentNullException("methodInfo", "Method info cannot be null.") |> raise
         fun (u : Universe, il : ILGenerator) -> 
             f(u, il)
-            emitMethodInfo OpCodes.Call (ofMethodInfo u methodInfo)
+            emitMethodInfo OpCodes.Call (ofMethodInfo u methodInfo) (u, il)
 
     [<CustomOperation("callvirt", MaintainsVariableSpace = true)>]
     member __.callvirt (f, methodInfo : System.Reflection.MethodInfo) = 
