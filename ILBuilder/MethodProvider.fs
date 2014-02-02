@@ -109,17 +109,8 @@ type MethodProvider() =
 
         typesAndMethods
         |> Seq.iter (fun (ty, mi) ->
-            let parts = (ty.Namespace.Split '.' |> Seq.toList) @ [ty.Name]
+            let parts = (if ty.Namespace = null then [] else ty.Namespace.Split '.' |> Seq.toList) @ [ty.Name]
             addNested t parts mi [])
-          (*
-        t.AddMemberDelayed (fun () -> 
-            //let tok = typeof<System.Console>.GetMethod("Write", [| typeof<string> |]).MetadataToken
-            ProvidedProperty("MethodOne", 
-                             typeof<MethodInfo>, 
-                             IsStatic = true, 
-                             GetterCode = fun args -> 
-                                <@@ typeof<System.Console>.GetMethod("Write", [| typeof<string> |]) @@>)
-        )*)
         t
 
     do containerType.DefineStaticParameters(

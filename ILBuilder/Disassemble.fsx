@@ -21,3 +21,7 @@ let dis assemblyPath =
     process.WaitForExit()
 
 dis @"c:\temp\MyAssembly.dll"
+File.ReadAllText(@"c:\temp\MyAssembly.il")
+
+dis @"C:\Dev\Temp\TestDemo\TestDemo\bin\Debug\TestDemo.dll"
+File.ReadAllText(@"C:\Dev\Temp\TestDemo\TestDemo\bin\Debug\TestDemo.il")

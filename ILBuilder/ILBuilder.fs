@@ -5,6 +5,7 @@ open System.IO
 
 open IKVM.Reflection
 open IKVM.Reflection.Emit
+open IKVM
 
 open Microsoft.FSharp.Quotations
 
@@ -32,7 +33,7 @@ type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) =
             let il = IKVMMethodBuilder("get_" + name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, returnType, System.Type.EmptyTypes)
             let getter = il {
                 ldarg_0
-                ldfld propField
+                ldfld (FieldBuilder propField)
                 ret
             }
             pb.SetGetMethod(getter(u, tb))
@@ -45,7 +46,7 @@ type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) =
             let setter = il {
                 ldarg_0
                 ldarg_1
-                stfld__FieldBuilder propField
+                stfld (FieldBuilder propField)
                 ret
             }
             pb.SetSetMethod(setter(u, tb))

@@ -45,23 +45,43 @@ let ofConstructorInfo (u : Universe) (ci : System.Reflection.ConstructorInfo) =
     let ci = t.GetMethod(ci.Name, ps)
     ci
 
-let private emitLabel (opcode : OpCode) (label : Label) (u : Universe, il : ILGenerator) = il.Emit(opcode, label)
-let private emit (opcode : OpCode) (u : Universe, il : ILGenerator) = il.Emit(opcode)
-let private emitByte (opcode : OpCode) (arg : byte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
-let private emitSByte (opcode : OpCode) (arg : sbyte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
-let private emitInt16 (opcode : OpCode) (arg : int16) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitInt32 (opcode : OpCode) (arg : int32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitInt64 (opcode : OpCode) (arg : int64) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitFloat (opcode : OpCode) (arg : float32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitDouble (opcode : OpCode) (arg : double) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitType (opcode : OpCode) (cls : Type) (u : Universe, il : ILGenerator) = il.Emit(opcode, cls)
-let private emitMethodInfo (opcode : OpCode) (meth : MethodInfo) (u : Universe, il : ILGenerator) = il.Emit(opcode, meth) 
-let private emitConstructorInfo (opcode : OpCode) (con : ConstructorInfo) (u : Universe, il : ILGenerator) = il.Emit(opcode, con) 
-let private emitFieldInfo (opcode : OpCode) (field : FieldInfo) (u : Universe, il : ILGenerator) = il.Emit(opcode, field)
-let private emitString (opcode : OpCode) (str : String) (u : Universe, il : ILGenerator) = il.Emit(opcode, str) 
-let private emitLocalBuilder (opcode : OpCode) (local : LocalBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
-let private emitMethodBuilder (opcode : OpCode) (local : MethodBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
-let private emitFieldBuilder (opcode : OpCode) (local : FieldBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
+let ofFieldInfo (u : Universe) (fi : System.Reflection.FieldInfo) =
+    let t = fi.DeclaringType |> ofType u
+    let fi = t.GetField(fi.Name)
+    fi
+
+let private emitLabel opcode (label : Label) (u : Universe, il : ILGenerator) = il.Emit(opcode, label)
+let private emit opcode (u : Universe, il : ILGenerator) = il.Emit(opcode)
+let private emitByte opcode (arg : byte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
+let private emitSByte opcode (arg : sbyte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
+let private emitInt16 opcode (arg : int16) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
+let private emitInt32 opcode (arg : int32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
+let private emitInt64 opcode (arg : int64) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
+let private emitFloat opcode (arg : float32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
+let private emitDouble opcode (arg : double) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
+let private emitType opcode (arg : System.Type) (u : Universe, il : ILGenerator) = il.Emit(opcode, ofType u arg)
+//let private emitType opcode (cls : Type) (u : Universe, il : ILGenerator) = il.Emit(opcode, cls)
+let private emitMethodInfo opcode mi (u : Universe, il : ILGenerator) = il.Emit(opcode, ofMethodInfo u mi) 
+let private emitConstructorInfo opcode (con : ConstructorInfo) (u : Universe, il : ILGenerator) = il.Emit(opcode, con) 
+let private emitFieldInfo opcode field (u : Universe, il : ILGenerator) = il.Emit(opcode, ofFieldInfo u field)
+let private emitString opcode (str : String) (u : Universe, il : ILGenerator) = il.Emit(opcode, str) 
+let private emitLocalBuilder opcode (local : LocalBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
+let private emitMethodBuilder opcode (local : MethodBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
+let private emitFieldBuilder opcode (local : FieldBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
+
+type LdtokenArg = 
+| Field of System.Reflection.FieldInfo
+| Method of System.Reflection.MethodInfo
+| Type of System.Type
+
+type NewobjArg = 
+| Constructor of System.Reflection.ConstructorInfo
+| ConstructorBuilder of Emit.ConstructorBuilder
+| Type of System.Type
+
+type FieldArg = 
+| Field of System.Reflection.FieldInfo
+| FieldBuilder of Emit.FieldBuilder
 
 type EmitBuilder() = 
     [<CustomOperation("add", MaintainsVariableSpace = true)>]
@@ -80,10 +100,10 @@ type EmitBuilder() =
     member __.arglist(f) = f +> emit OpCodes.Arglist
 
     [<CustomOperation("beginCatchBlock", MaintainsVariableSpace = true)>]
-    member __.beginCatchBlock(exceptionType)(f) = fun (il : ILGenerator, u : Universe) -> il.BeginCatchBlock(u.Import(exceptionType))
+    member __.beginCatchBlock(f, exceptionType) = fun (u : Universe, il : ILGenerator) -> il.BeginCatchBlock(u.Import(exceptionType))
 
     [<CustomOperation("beginExceptionBlock", MaintainsVariableSpace = true)>]
-    member __.beginExceptionBlock()(f) = fun (il : ILGenerator) -> il.BeginExceptionBlock()
+    member __.beginExceptionBlock(f) = fun (il : ILGenerator) -> il.BeginExceptionBlock()
 
     [<CustomOperation("beq", MaintainsVariableSpace = true)>]
     member __.beq(f, label) = f +> emitLabel OpCodes.Beq label
@@ -146,7 +166,7 @@ type EmitBuilder() =
     member __.bne_un_s(f, label) = f +> emitLabel OpCodes.Bne_Un_S label 
 
     [<CustomOperation("box", MaintainsVariableSpace = true)>]
-    member __.box (f, typ : System.Type) = fun (il : ILGenerator, u : Universe) -> il.Emit(OpCodes.Box, u.Import(typ)) 
+    member __.box (f, typ : System.Type) = fun (u : Universe, il : ILGenerator) -> il.Emit(OpCodes.Box, u.Import(typ)) 
 
     [<CustomOperation("br", MaintainsVariableSpace = true)>]
     member __.br(f, label) = f +> emitLabel OpCodes.Br label 
@@ -180,24 +200,15 @@ type EmitBuilder() =
     [<CustomOperation("call", MaintainsVariableSpace = true)>]
     member __.call (f, methodInfo : System.Reflection.MethodInfo)=     
         if methodInfo = null then ArgumentNullException("methodInfo", "Method info cannot be null.") |> raise
-        fun (u : Universe, il : ILGenerator) -> 
-            f(u, il)
-            emitMethodInfo OpCodes.Call (ofMethodInfo u methodInfo) (u, il)
+        f +> emitMethodInfo OpCodes.Call methodInfo
 
     [<CustomOperation("callvirt", MaintainsVariableSpace = true)>]
     member __.callvirt (f, methodInfo : System.Reflection.MethodInfo) = 
-        fun (u : Universe, il : ILGenerator) -> 
-            f(u, il)
-            emitMethodInfo OpCodes.Callvirt (ofMethodInfo u methodInfo) (u,il)
+        f +> emitMethodInfo OpCodes.Callvirt methodInfo
 
     [<CustomOperation("castclass", MaintainsVariableSpace = true)>]
-    member __.castclass (f, typ : Type) = f +> emitType OpCodes.Castclass typ 
-
-    [<CustomOperation("castclass", MaintainsVariableSpace = true)>]
-    member __.castclass (f, typ : System.Type) = 
-        fun (u : Universe, il : ILGenerator) -> 
-            let g = __.castclass(f, ofType u typ)
-            g(u, il)
+    member __.castclass (f, ty : System.Type) = 
+        f +> emitType OpCodes.Castclass ty
 
     [<CustomOperation("ceq", MaintainsVariableSpace = true)>]
     member __.ceq(f) = f +> emit OpCodes.Ceq
@@ -218,16 +229,16 @@ type EmitBuilder() =
     member __.clt_un(f) = f +> emit OpCodes.Clt_Un
 
     [<CustomOperation("constrained", MaintainsVariableSpace = true)>]
-    member __.constrained (f, typ : Type) = f +> emitType OpCodes.Constrained typ 
+    member __.constrained (f, ty) = f +> emitType OpCodes.Constrained ty
 
     [<CustomOperation("cpobj", MaintainsVariableSpace = true)>]
-    member __.cpobj (f, typ : Type) = f +> emitType OpCodes.Cpobj typ 
+    member __.cpobj (f, ty) = f +> emitType OpCodes.Cpobj ty
 
     [<CustomOperation("declareLocal", MaintainsVariableSpace = true)>]
-    member __.declareLocal(d, t : System.Type) = fun (il : ILGenerator, u : Universe) -> il.DeclareLocal(ofType u t)
-
-    [<CustomOperation("declareLocal", MaintainsVariableSpace = true)>]
-    member __.declareLocal(f, tb : TypeBuilder) = fun (il : ILGenerator) -> il.DeclareLocal(tb)
+    member __.declareLocal(f, ty) = 
+        fun (u : Universe, il : ILGenerator) -> 
+            f(u, il)
+            il.DeclareLocal(ofType u ty)
 
     [<CustomOperation("defineLabel", MaintainsVariableSpace = true)>]
     member __.defineLabel(f) = 
@@ -239,13 +250,13 @@ type EmitBuilder() =
     member __.endExceptionBlock(f) = fun (il : ILGenerator) -> il.EndExceptionBlock()
 
     [<CustomOperation("initobj", MaintainsVariableSpace = true)>]
-    member __.initobj (typ : Type)(f) = f +> emitType OpCodes.Initobj typ 
+    member __.initobj (f, ty) = f +> emitType OpCodes.Initobj ty 
 
     [<CustomOperation("isinst", MaintainsVariableSpace = true)>]
-    member __.isinst (typ : Type)(f) = f +> emitType OpCodes.Isinst typ 
+    member __.isinst (f, ty) = f +> emitType OpCodes.Isinst ty 
 
     [<CustomOperation("jmp", MaintainsVariableSpace = true)>]
-    member __.jmp (methodInfo : MethodInfo)(f) = f +> emitMethodInfo OpCodes.Jmp methodInfo 
+    member __.jmp (f, methodInfo) = f +> emitMethodInfo OpCodes.Jmp methodInfo 
 
     [<CustomOperation("ldarg_s", MaintainsVariableSpace = true)>]
     member __.ldarg_s(f, index: byte) = f +> emitByte OpCodes.Ldarg_S index
@@ -271,7 +282,7 @@ type EmitBuilder() =
     member __.ldarga(f, index : int16) = f +> emitInt16 OpCodes.Ldarga index 
 
     [<CustomOperation("ldc_bool", MaintainsVariableSpace = true)>]
-    member __.ldc_bool (b : bool)(f) = f +> emit (if b then OpCodes.Ldc_I4_1 else OpCodes.Ldc_I4_0)
+    member __.ldc_bool (f, b : bool) = f +> emit (if b then OpCodes.Ldc_I4_1 else OpCodes.Ldc_I4_0)
 
     [<CustomOperation("ldc_i4", MaintainsVariableSpace = true)>]
     member __.ldc_i4(f, num : int) = f +> emitInt32 OpCodes.Ldc_I4 num 
@@ -292,22 +303,24 @@ type EmitBuilder() =
     member __.ldc_r8 (f, num : double) = f +> emitDouble OpCodes.Ldc_R8 num 
 
     [<CustomOperation("ldelema", MaintainsVariableSpace = true)>]
-    member __.ldelema (f, typ : Type) = f +> emitType OpCodes.Ldelema typ 
+    member __.ldelema (f, ty) = f +> emitType OpCodes.Ldelema ty 
 
     [<CustomOperation("ldfld", MaintainsVariableSpace = true)>]
-    member __.ldfld (f, fieldInfo : FieldInfo) = f +> emitFieldInfo OpCodes.Ldfld fieldInfo 
+    member __.ldfld (f, field : FieldArg) = 
+        fun (u : Universe, il : ILGenerator) ->
+            f(u, il)
+            match field with
+            | FieldArg.Field fi -> il.Emit(OpCodes.Ldfld, ofFieldInfo u fi)
+            | FieldArg.FieldBuilder fb -> il.Emit(OpCodes.Ldfld, fb)
 
     [<CustomOperation("ldflda", MaintainsVariableSpace = true)>]
-    member __.ldflda (fieldInfo : FieldInfo)(f) = f +> emitFieldInfo OpCodes.Ldflda fieldInfo 
+    member __.ldflda (f, fieldInfo) = f +> emitFieldInfo OpCodes.Ldflda fieldInfo 
 
     [<CustomOperation("ldftn", MaintainsVariableSpace = true)>]
     member __.ldftn (f, methodBuilder : MethodBuilder) = f +> emitMethodBuilder OpCodes.Ldftn methodBuilder 
 
     [<CustomOperation("ldftn", MaintainsVariableSpace = true)>]
-    member __.ldftn (f, methodInfo : System.Reflection.MethodInfo) = 
-        fun (u : Universe, il : ILGenerator) -> 
-            f(u, il)
-            emitMethodInfo OpCodes.Ldftn (ofMethodInfo u methodInfo) 
+    member __.ldftn (f, methodInfo) = f +> emitMethodInfo methodInfo
 
     [<CustomOperation("ldloc", MaintainsVariableSpace = true)>]
     member __.ldloc (f, index : int16) = f +> emitInt16 OpCodes.Ldloc index 
@@ -328,38 +341,33 @@ type EmitBuilder() =
     member __.ldloc_s (f, index : byte) = f +> emitByte OpCodes.Ldloca_S index 
 
     [<CustomOperation("ldobj", MaintainsVariableSpace = true)>]
-    member __.ldobj (typ : Type)(f) = f +> emitType OpCodes.Ldobj typ 
+    member __.ldobj (f, ty) = f +> emitType OpCodes.Ldobj ty
 
     [<CustomOperation("ldsfld", MaintainsVariableSpace = true)>]
-    member __.ldsfld (f, fieldBuilder : FieldBuilder) = f +> emitFieldBuilder OpCodes.Ldsfld fieldBuilder
-
-    [<CustomOperation("ldsfld", MaintainsVariableSpace = true)>]
-    member __.ldsfld (f, fieldInfo : System.Reflection.FieldInfo) = 
-        fun (il : ILGenerator, u : Universe) -> 
-            let declaringType = fieldInfo.DeclaringType |> u.Import
-            let fi = declaringType.GetField(fieldInfo.Name)
-            emitFieldInfo OpCodes.Ldsfld fi
+    member __.ldsfld (f, field : FieldArg) = 
+        fun (u : Universe, il : ILGenerator) ->
+            f(u, il)
+            match field with
+            | FieldArg.Field fi -> il.Emit(OpCodes.Ldsfld, ofFieldInfo u fi)
+            | FieldArg.FieldBuilder fb -> il.Emit(OpCodes.Ldsfld, fb)
 
     [<CustomOperation("ldsflda", MaintainsVariableSpace = true)>]
-    member __.ldsflda (f, fieldInfo : FieldInfo) = f +> emitFieldInfo OpCodes.Ldsflda fieldInfo 
+    member __.ldsflda (f, fieldInfo) = f +> emitFieldInfo OpCodes.Ldsflda fieldInfo 
 
     [<CustomOperation("ldstr", MaintainsVariableSpace = true)>]
     member __.ldstr (f, str : string)= f +> emitString OpCodes.Ldstr str 
 
     [<CustomOperation("ldtoken", MaintainsVariableSpace = true)>]
-    member __.ldtoken (f, methodInfo : MethodInfo) = f +> emitMethodInfo OpCodes.Ldtoken methodInfo 
-
-    [<CustomOperation("ldtoken", MaintainsVariableSpace = true)>]
-    member __.ldtoken (f, fieldInfo : FieldInfo) = f +> emitFieldInfo OpCodes.Ldtoken fieldInfo 
-
-    [<CustomOperation("ldtoken", MaintainsVariableSpace = true)>]
-    member __.ldtoken (f, typ : Type) = f +> emitType OpCodes.Ldtoken typ 
-
-    [<CustomOperation("ldtoken", MaintainsVariableSpace = true)>]
-    member __.ldtoken (f, typ : System.Type) = fun (il : ILGenerator, u : Universe) -> il.Emit(OpCodes.Ldtoken, u.Import(typ)) 
+    member __.ldtoken (f, token : LdtokenArg) = 
+        fun (u : Universe, il : ILGenerator) -> 
+            f(u, il)
+            match token with 
+            | Method methodInfo -> il.Emit(OpCodes.Ldtoken, ofMethodInfo u methodInfo)
+            | LdtokenArg.Field fieldInfo -> il.Emit(OpCodes.Ldtoken, ofFieldInfo u fieldInfo)
+            | LdtokenArg.Type ty -> il.Emit(OpCodes.Ldtoken, ofType u ty)
 
     [<CustomOperation("ldvirtftn", MaintainsVariableSpace = true)>]
-    member __.ldvirtftn (f, methodInfo : MethodInfo) = f +> emitMethodInfo OpCodes.Ldvirtftn methodInfo 
+    member __.ldvirtftn (f, methodInfo) = f +> emitMethodInfo OpCodes.Ldvirtftn 
 
     [<CustomOperation("leave", MaintainsVariableSpace = true)>]
     member __.leave(f, label) = f +> emitLabel OpCodes.Leave label 
@@ -371,69 +379,58 @@ type EmitBuilder() =
     member __.markLabel(f, label : Label) = f +> fun (_, il : ILGenerator) -> il.MarkLabel(label)
 
     [<CustomOperation("mkrefany", MaintainsVariableSpace = true)>]
-    member __.mkrefany (typ : System.Type)(f) = fun (il : ILGenerator, u : Universe) -> il.Emit(OpCodes.Mkrefany, u.Import(typ)) 
+    member __.mkrefany (f, ty) = f +> emitType OpCodes.Mkrefany ty
 
     [<CustomOperation("newarr", MaintainsVariableSpace = true)>]
-    member __.newarr (elType : System.Type)(f) = fun (il : ILGenerator, u : Universe) -> il.Emit(OpCodes.Newarr, u.Import(elType)) 
+    member __.newarr (f, ty) = f +> emitType OpCodes.Newarr ty
 
     [<CustomOperation("newobj", MaintainsVariableSpace = true)>]
-    member __.newobj (f, constructorInfo : System.Reflection.ConstructorInfo) = 
-        fun (il : ILGenerator, u : Universe) -> 
-            let t = constructorInfo.DeclaringType |> ofType u
-            let pts = constructorInfo.GetParameters() |> Array.map (fun p -> p.ParameterType |> ofType u)                   
-            let ci = t.GetConstructor(pts)
-            il.Emit(OpCodes.Newobj, ci)
-
-    [<CustomOperation("newobj", MaintainsVariableSpace = true)>]
-    member __.newobj<'t when 't : (new : unit -> 't)>(f) = 
-        fun (il : ILGenerator, u : Universe) -> 
-            f +> emitConstructorInfo OpCodes.Newobj (u.Import(typeof<'t>).GetConstructor([||]))
-
-    [<CustomOperation("newobj", MaintainsVariableSpace = true)>]
-    member __.newobj(f, t : Type) = 
-        f +> emitConstructorInfo OpCodes.Newobj (t.GetConstructor([||]))
-
-    [<CustomOperation("newobj", MaintainsVariableSpace = true)>]
-    member __.newobj(f, t : System.Type) = __.newobj(f, t.GetConstructor([||]))
-
-    [<CustomOperation("newobj", MaintainsVariableSpace = true)>]
-    member __.newobj(f, cb : ConstructorBuilder) = 
+    member __.newobj (f, arg : NewobjArg) = 
         fun (u : Universe, il : ILGenerator) -> 
             f(u, il)
-            il.Emit(OpCodes.Newobj, cb) 
+            match arg with
+            | NewobjArg.Constructor ci ->
+                il.Emit(OpCodes.Newobj, ofConstructorInfo u ci)
+            | NewobjArg.ConstructorBuilder cb ->
+                il.Emit(OpCodes.Newobj, cb)
+            | NewobjArg.Type ty ->
+                let ci = (ofType u ty).GetConstructor([||])         
+                il.Emit(OpCodes.Newobj, ci)
 
     [<CustomOperation("refanyval", MaintainsVariableSpace = true)>]
-    member __.refanyval (typ : Type)(f) = f +> emitType OpCodes.Refanyval typ 
+    member __.refanyval (f, ty) = f +> emitType OpCodes.Refanyval ty
 
     [<CustomOperation("ret", MaintainsVariableSpace = true)>]
     member __.ret(f) = f +> emit OpCodes.Ret 
 
     [<CustomOperation("sizeof", MaintainsVariableSpace = true)>]
-    member __.sizeof (typ : Type)(f) = f +> emitType OpCodes.Sizeof typ 
+    member __.sizeof (f, ty) = f +> emitType OpCodes.Sizeof ty
 
     [<CustomOperation("starg", MaintainsVariableSpace = true)>]
-    member __.starg (index : int16)(f) = f +> emitInt16 OpCodes.Starg index 
+    member __.starg (f, index : int16) = f +> emitInt16 OpCodes.Starg index 
 
     [<CustomOperation("starg_s", MaintainsVariableSpace = true)>]
-    member __.starg_s (index : byte)(f) = f +> emitByte OpCodes.Starg_S index 
+    member __.starg_s (f, index : byte) = f +> emitByte OpCodes.Starg_S index 
 
-    [<CustomOperation("stfld__FieldBuilder", MaintainsVariableSpace = true)>]
-    member __.stfld__FieldBuilde (f, fieldBuilder : FieldBuilder) = f +> emitFieldBuilder OpCodes.Stfld fieldBuilder 
-
-    [<CustomOperation("stfld__FieldInfo", MaintainsVariableSpace = true)>]
-    member __.stfld__FieldInfo (f, fieldInfo : FieldInfo) = f +> emitFieldInfo OpCodes.Stfld fieldInfo 
+    [<CustomOperation("stfld", MaintainsVariableSpace = true)>]
+    member __.stfld (f, field : FieldArg) = 
+        fun (u : Universe, il : ILGenerator) ->
+            f(u, il)
+            match field with
+            | Field fi -> il.Emit(OpCodes.Stfld, ofFieldInfo u fi)
+            | FieldBuilder fb -> il.Emit(OpCodes.Stfld, fb)
 
     [<CustomOperation("stloc", MaintainsVariableSpace = true)>]
-    member __.stloc (local : LocalBuilder)(f) = f +> emitLocalBuilder OpCodes.Stloc local 
+    member __.stloc (f, local : LocalBuilder) = f +> emitLocalBuilder OpCodes.Stloc local 
 
     [<CustomOperation("stloc_s", MaintainsVariableSpace = true)>]
-    member __.stloc_s (local : LocalBuilder)(f) = f +> emitLocalBuilder OpCodes.Stloc_S local 
+    member __.stloc_s (f, local : LocalBuilder)= f +> emitLocalBuilder OpCodes.Stloc_S local 
 
     [<CustomOperation("stobj", MaintainsVariableSpace = true)>]
-    member __.stobj (typ : Type)(f) = f +> emitType OpCodes.Stobj typ 
+    member __.stobj (f, ty)= f +> emitType OpCodes.Stobj ty
 
     [<CustomOperation("stsfld", MaintainsVariableSpace = true)>]
-    member __.stsfld (fieldInfo : FieldInfo)(f) = f +> emitFieldInfo OpCodes.Stsfld fieldInfo 
+    member __.stsfld (f, fieldInfo) = f +> emitFieldInfo OpCodes.Stsfld fieldInfo 
 
     [<CustomOperation("thisType", MaintainsVariableSpace = true)>]
     member __.thisType(f) = fun (il : ILGenerator, mb : MethodBuilder) -> mb.DeclaringType
@@ -445,10 +442,10 @@ type EmitBuilder() =
     member __.unaligned (f, addr : int64) = f +> emitInt64 OpCodes.Unaligned addr 
 
     [<CustomOperation("unbox", MaintainsVariableSpace = true)>]
-    member __.unbox (typ : Type)(f) = f +> emitType OpCodes.Unbox typ 
+    member __.unbox (f, ty) = f +> emitType OpCodes.Unbox ty
 
     [<CustomOperation("unbox_any", MaintainsVariableSpace = true)>]
-    member __.unbox_any (typ : System.Type)(f) = fun (il : ILGenerator, u : Universe) -> il.Emit(OpCodes.Unbox_Any, u.Import(typ)) 
+    member __.unbox_any (f, typ : System.Type) = fun (u : Universe, il : ILGenerator) -> il.Emit(OpCodes.Unbox_Any, u.Import(typ)) 
 
     [<CustomOperation("conv_i", MaintainsVariableSpace = true)>]
     member __.conv_i(f) = f +> emit OpCodes.Conv_I
