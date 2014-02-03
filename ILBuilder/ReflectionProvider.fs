@@ -1,24 +1,21 @@
-﻿module Providers
+﻿namespace ILBuilder.Providers
 
 open System.Collections.Generic
 open System.Reflection
 
 open Microsoft.FSharp.Core.CompilerServices
 
-open ProviderImplementation
-open ProviderImplementation.ProvidedTypes
-
 [<TypeProvider>]
-type MethodProvider() =
+type ReflectionProvider() =
     inherit TypeProviderForNamespaces()
 
     let staticParams = 
         [
-            ProvidedStaticParameter("Assembly", typeof<string>)
+            ProvidedStaticParameter("Assemblies", typeof<string>)
         ]
     let thisAssembly = Assembly.GetExecutingAssembly()
-    let rootNamespace = "MethodsProvider"
-    let containerType = ProvidedTypeDefinition(thisAssembly, rootNamespace, "Methods", None, IsErased = true)
+    let rootNamespace = "ReflectionProvider"
+    let containerType = ProvidedTypeDefinition(thisAssembly, rootNamespace, "Reflected", None, IsErased = true)
 
     let lookup = Dictionary()
 
@@ -98,26 +95,27 @@ type MethodProvider() =
                     [pt])
 
 
-    let loader (typeName, assemblyName : string) = 
+    let loader (typeName, assemblyNames : string) = 
         let t = ProvidedTypeDefinition(thisAssembly, rootNamespace, typeName, None, IsErased = true)
-        let assembly = Assembly.Load(assemblyName)
-        let typesAndMethods = 
-            assembly.ExportedTypes
-            |> Seq.filter (fun ty -> ty <> typeof<System.Void>)
-            |> Seq.collect (fun ty -> ty.GetMethods() |> Seq.map (fun mi -> ty, mi))
-            |> Seq.toArray
+        for assemblyName in assemblyNames.Split(';') do
+            let assembly = Assembly.Load(assemblyName)
+            let typesAndMethods = 
+                assembly.ExportedTypes
+                |> Seq.filter (fun ty -> ty <> typeof<System.Void>)
+                |> Seq.collect (fun ty -> ty.GetMethods() |> Seq.map (fun mi -> ty, mi))
+                |> Seq.toArray
 
-        typesAndMethods
-        |> Seq.iter (fun (ty, mi) ->
-            let parts = (if ty.Namespace = null then [] else ty.Namespace.Split '.' |> Seq.toList) @ [ty.Name]
-            addNested t parts mi [])
+            typesAndMethods
+            |> Seq.iter (fun (ty, mi) ->
+                //printfn "--->%s" ty.FullName
+                let parts = (if ty.Namespace = null then [] else ty.Namespace.Split '.' |> Seq.toList) @ [ty.Name]
+                addNested t parts mi [])
         t
 
     do containerType.DefineStaticParameters(
             staticParams,
-            (fun typeName [| :? string as assembly |] ->
-                printfn "--->typeName: %s" assembly
-                loader(typeName, assembly)
+            (fun typeName [| :? string as assemblies |] ->
+                loader(typeName, assemblies)
             ))
 
     do base.AddNamespace(rootNamespace, [containerType])

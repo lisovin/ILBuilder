@@ -1,4 +1,4 @@
-﻿module IKVM
+﻿namespace ILBuilder
 
 open System
 open System.IO
@@ -6,68 +6,8 @@ open System.IO
 open IKVM.Reflection
 open IKVM.Reflection.Emit
 
-open Microsoft.FSharp.Quotations
-
-module Seq = 
-    let toString sep (xs : _ seq) = String.Join(sep, xs)
-
-let (+>) f g x = 
-    f x
-    g x
-
-let ofType (u : Universe) (t : System.Type) = if t = null then null else u.Import(t)
-let ofTypes (u : Universe) (ts : System.Type[]) = ts |> Array.map (ofType u)
-let ofMethodInfo (u : Universe) (mi : System.Reflection.MethodInfo) =     
-    let t = mi.DeclaringType |> ofType u
-    let pts = mi.GetParameters()
-    let ms = t.GetMethods()
-    let umi = 
-        match ms |> Seq.map (fun m -> m,m.GetParameters())
-                    |> Seq.filter (fun (m,ps) -> m.Name = mi.Name && ps.Length = pts.Length)
-                    |> Seq.toList with
-        | [] -> failwithf "Type '%s' doesn't have a method with '%O'." t.FullName mi
-        | [mps] -> fst mps
-        | ms -> ms |> Seq.find (fun (m,ps) ->
-                        (pts,ps) 
-                        ||> Seq.zip
-                        |> Seq.forall (fun (pt,p) -> 
-                            if m.IsGenericMethodDefinition && p.ParameterType.IsGenericType
-                            then u.Import(pt.ParameterType.GetGenericTypeDefinition()) = p.ParameterType.GetGenericTypeDefinition()
-                            else u.Import(pt.ParameterType) = p.ParameterType))
-                    |> fst
-    if umi.ContainsGenericParameters && not(mi.GetGenericArguments() |> Seq.exists (fun arg -> arg.IsGenericParameter))
-    then umi.MakeGenericMethod(mi.GetGenericArguments() |> Array.map (ofType u))
-    else umi
-
-let ofConstructorInfo (u : Universe) (ci : System.Reflection.ConstructorInfo) =     
-    let t = ci.DeclaringType |> ofType u
-    let ps = ci.GetParameters() |> Array.map (fun p -> p.ParameterType |> ofType u)
-    let ci = t.GetMethod(ci.Name, ps)
-    ci
-
-let ofFieldInfo (u : Universe) (fi : System.Reflection.FieldInfo) =
-    let t = fi.DeclaringType |> ofType u
-    let fi = t.GetField(fi.Name)
-    fi
-
-let private emitLabel opcode (label : Label) (u : Universe, il : ILGenerator) = il.Emit(opcode, label)
-let private emit opcode (u : Universe, il : ILGenerator) = il.Emit(opcode)
-let private emitByte opcode (arg : byte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
-let private emitSByte opcode (arg : sbyte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
-let private emitInt16 opcode (arg : int16) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitInt32 opcode (arg : int32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitInt64 opcode (arg : int64) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitFloat opcode (arg : float32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitDouble opcode (arg : double) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-let private emitType opcode (arg : System.Type) (u : Universe, il : ILGenerator) = il.Emit(opcode, ofType u arg)
-//let private emitType opcode (cls : Type) (u : Universe, il : ILGenerator) = il.Emit(opcode, cls)
-let private emitMethodInfo opcode mi (u : Universe, il : ILGenerator) = il.Emit(opcode, ofMethodInfo u mi) 
-let private emitConstructorInfo opcode (con : ConstructorInfo) (u : Universe, il : ILGenerator) = il.Emit(opcode, con) 
-let private emitFieldInfo opcode field (u : Universe, il : ILGenerator) = il.Emit(opcode, ofFieldInfo u field)
-let private emitString opcode (str : String) (u : Universe, il : ILGenerator) = il.Emit(opcode, str) 
-let private emitLocalBuilder opcode (local : LocalBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
-let private emitMethodBuilder opcode (local : MethodBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
-let private emitFieldBuilder opcode (local : FieldBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
+open ILBuilder
+open ILBuilder.Utils
 
 type LdtokenArg = 
 | Field of System.Reflection.FieldInfo
@@ -818,3 +758,175 @@ type EmitBuilder() =
     
     member __.Yield(unit) = fun (u : Universe, il : ILGenerator) -> ()
 
+//type State<'s> = State of ('s -> unit)
+type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?export : string * int) = 
+    inherit EmitBuilder()
+
+    member __.Run(f : Universe * ILGenerator -> unit) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            let methodBuilder = tb.DefineMethod(name, atts, returnType |> Utils.ofType u, parameterTypes |> Utils.ofTypes u)
+            let il = methodBuilder.GetILGenerator()
+            f (u, il)
+            match export with
+            |Some (name, n) -> methodBuilder.__AddUnmanagedExport(name, n)
+            |_ -> ()
+            methodBuilder
+
+type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) = 
+    let mutable propField = null
+
+    [<CustomOperation("get")>]
+    member __.Getter(f) = 
+        fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) -> 
+            f(u, tb, pb)
+            let il = IKVMMethodBuilder("get_" + name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, returnType, System.Type.EmptyTypes)
+            let getter = il {
+                ldarg_0
+                ldfld (FieldBuilder propField)
+                ret
+            }
+            pb.SetGetMethod(getter(u, tb))
+
+    [<CustomOperation("set")>]
+    member __.Setter(f) = 
+        fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) -> 
+            f(u, tb, pb)
+            let il = IKVMMethodBuilder("set_" + name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, null, [|returnType|])
+            let setter = il {
+                ldarg_0
+                ldarg_1
+                stfld (FieldBuilder propField)
+                ret
+            }
+            pb.SetSetMethod(setter(u, tb))
+
+    member __.Yield(unit) = fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) -> ()
+
+    member __.Run(f) = 
+        fun (u : Universe, tb : TypeBuilder) -> 
+            let pb = tb.DefineProperty(name, PropertyAttributes.None, returnType |> Utils.ofType u, parameterTypes |> Utils.ofTypes u)
+            propField <- tb.DefineField(name, returnType |> Utils.ofType u, FieldAttributes.Private)
+            f(u, tb, pb) |> ignore
+            pb
+            
+type IKVMTypeBuilder(name, atts) = 
+    // let!
+    member __.Bind(define, definesBinding : 'b -> Universe * TypeBuilder -> 'r) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            let bound = define(u, tb)
+            let defines = definesBinding(bound)
+            defines(u, tb)
+    // do!
+    member __.Bind(define, definesBinding : unit -> Universe * TypeBuilder -> 'r) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            let result = define(u, tb)
+            let defines = definesBinding()
+            defines(u, tb)
+    
+    member __.Return(x) = fun (u : Universe, tb : TypeBuilder) -> x
+
+    member __.For(xs, f) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            for x in xs do
+                let define = f(x)
+                define(u, tb)
+
+    member __.Run(f) =   
+        fun (universe : Universe, moduleBuilder : ModuleBuilder) ->
+            let typeBuilder = moduleBuilder.DefineType(name, atts)
+            f(universe, typeBuilder) |> ignore
+            typeBuilder.CreateType() 
+
+type IKVMAssemblyBuilder(assemblyPath) = 
+    let universe = new Universe()
+    let name = Path.GetFileNameWithoutExtension(assemblyPath)
+    let filename = Path.GetFileName(assemblyPath)
+    let directory = Path.GetDirectoryName(assemblyPath)
+    let assemblyName = AssemblyName(name)
+    let universe = new Universe()
+    let assemblyBuilder = universe.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Save, directory)
+    let moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, filename)
+
+    member __.Bind(define, definesBinding : 'b -> 'r) = 
+        let bound = define(universe, moduleBuilder)
+        definesBinding(bound)
+
+    member __.Bind(define, definesBinding : unit -> 'r) = 
+        let result = define(universe, moduleBuilder)
+        definesBinding()
+
+    member __.Return(x) = x
+
+    //member __.Zero() = () 
+
+    member __.For(xs, f) = 
+        for x in xs do
+            f(x)
+            //define() |> ignore
+
+    member __.Run(f) =   
+        assemblyBuilder
+
+[<AutoOpen>]
+module Helpers =
+    let assembly assemblyPath = IKVMAssemblyBuilder(assemblyPath)
+
+    (*
+     * Types
+     *)
+    let publicType typeName = 
+        IKVMTypeBuilder(typeName, TypeAttributes.Public)
+
+    (*
+     * Constructors
+     *)
+    let publicConstructor (u : Universe, mb : ModuleBuilder) = ()
+
+    let publicDefaultEmptyConstructor (u : Universe, tb : TypeBuilder) =
+        tb.DefineDefaultConstructor(MethodAttributes.Public)
+
+    (*
+     * Methods
+     *)
+    let publicMethod<'TReturnType> name (parameterTypes : seq<System.Type>) = 
+        let returnType = 
+            match typeof<'TReturnType> with 
+            | t when t = typeof<unit> -> typeof<System.Void>
+            | t -> t
+        IKVMMethodBuilder(name, MethodAttributes.Public, returnType, parameterTypes |> Seq.toArray)
+
+    let publicVoidMethod name parameterTypes = 
+        publicMethod<unit> name parameterTypes
+    
+    let privateStaticMethod methodName returnType parameters = 
+        IKVMMethodBuilder(methodName, MethodAttributes.Private ||| MethodAttributes.Static, returnType, parameters)
+
+    let publicStaticMethod_Exported methodName returnType parameters exportIndex = 
+        IKVMMethodBuilder(methodName, MethodAttributes.Public ||| MethodAttributes.Static, returnType, parameters, (methodName, exportIndex))
+    
+    (*
+     * Fields
+     *)
+    let privateStaticField fieldName fieldType =
+        fun (tb : TypeBuilder, u : Universe) ->
+            tb.DefineField(fieldName, u.Import(fieldType), FieldAttributes.Static ||| FieldAttributes.Private)         
+
+    let publicStaticField fieldName fieldType =
+        fun (tb : TypeBuilder, u : Universe) ->
+            tb.DefineField(fieldName, u.Import(fieldType), FieldAttributes.Static ||| FieldAttributes.Public)         
+    
+    let publicField fieldName fieldType =
+        fun (tb : TypeBuilder, u : Universe) ->
+            tb.DefineField(fieldName, u.Import(fieldType), FieldAttributes.Public)         
+        
+    (*
+     * Properties
+     *)
+    let publicAutoProperty<'t> propName = 
+        IKVMAutoPropertyBuilder(propName, PropertyAttributes.None, typeof<'t>, [||])
+
+    (*
+     * Save
+     *)
+    let saveAssembly (ab : AssemblyBuilder) = 
+        ab.Save(ab.GetName().Name + ".dll")

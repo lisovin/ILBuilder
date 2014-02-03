@@ -45,10 +45,10 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="IKVM.fs" />
-    <Compile Include="ILBuilder.fs" />
+    <Compile Include="Utils.fs" />
+    <Compile Include="Builders.fs" />
     <Compile Include="ProvidedTypes.fs" />
-    <Compile Include="MethodProvider.fs" />
+    <Compile Include="ReflectionProvider.fs" />
     <None Include="Sandbox.fsx" />
     <None Include="Disassemble.fsx" />
   </ItemGroup>
