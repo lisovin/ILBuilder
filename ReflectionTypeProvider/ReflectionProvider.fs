@@ -1,4 +1,4 @@
-﻿namespace ILBuilder.Providers
+﻿namespace ReflectionTypeProvider
 
 open System
 open System.Collections.Generic
@@ -121,7 +121,7 @@ type ReflectionProvider() =
                     addNested t parts mem level
                     []
                 | _ -> 
-                    printfn "Add level %s" p
+                    //printfn "Add level %s" p
                     let pt = ProvidedTypeDefinition(p, None)
                     lookup.Add(level, pt)
                     addNested pt parts mem level
@@ -159,6 +159,7 @@ type ReflectionProvider() =
         let a = typeof<int32>.Assembly
         //File.AppendAllText(@"c:\temp\ilbuilder.log", sprintf "--->code base: %s\n" a.CodeBase)
         let p = Path.Combine(Path.GetDirectoryName((Uri a.CodeBase).AbsolutePath), e.Name + ".dll")
+        //File.AppendAllText(@"c:\temp\ilbuilder.log", sprintf "--->trying to load assembly: %s\n" p)
         Assembly.LoadFile(p))
 
     do containerType.DefineStaticParameters(

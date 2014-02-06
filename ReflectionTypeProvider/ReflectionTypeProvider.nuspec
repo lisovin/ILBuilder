@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>ReflectionTypeProvider</id>
+    <version>0.1.1</version>
+    <title>ReflectionTypeProvider</title>
+    <authors>Peter Lisovin</authors>
+    <owners>Peter Lisovin</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+Type provider to statically expose reflection information. 
+
+E.g. verified at compile time and intellisense enabled Methods.System.Console.``WriteLine : string -> unit`` rather than verified at runtime typeof&lt;System.Console&gt;.GetMethod("WriteLine", [| typeof&lt;string&gt; |])
+</description>
+    <tags>reflection type provider fsharp</tags>
+    <projectUrl>https://github.com/lisovin/ILBuilder</projectUrl>
+  </metadata>
+  <files>
+    <file src="bin\Debug\ReflectionTypeProvider.dll" target="lib\net40" />
+  </files>
+</package>

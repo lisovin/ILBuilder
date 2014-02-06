@@ -1,0 +1,1 @@
+﻿typeof<System.Console>.GetMethod("WriteLine", [| typeof<string> |])

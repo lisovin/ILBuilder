@@ -1,11 +1,12 @@
 ﻿#r @"C:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\IKVM.Reflection.dll"
 #r @"C:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\ILBuilder.dll"
+#r @"C:\Dev\Projects\ILBuilder\ReflectionTypeProvider\bin\Debug\ReflectionTypeProvider.dll"
 open ILBuilder
 
 open System
 open System.Reflection
 open ReflectionProvider
-type R = Reflected<"">
+type Methods = Reflected<"">
 
 assembly @"c:\temp\MyAssembly.dll" {
     for n in [0..1] do
@@ -26,7 +27,7 @@ assembly @"c:\temp\MyAssembly.dll" {
                     ldc_i4_1
                     ldc_i4_s 'b'
                     stelem typeof<char>
-                    newobj (NewobjArg.Constructor R.System.String.``new : char[] -> string``)
+                    newobj (NewobjArg.Constructor Methods.System.String.``new : char[] -> string``)
                     ret
                 }
             }
@@ -38,9 +39,9 @@ assembly @"c:\temp\MyAssembly.dll" {
 
             do! publicVoidMethod "DoIt" [] {
                 ldtoken (LdtokenArg.Type typeof<System.String>)
-                call R.System.Type.``GetTypeFromHandle : System.RuntimeTypeHandle -> System.Type``
-                callvirt R.System.Type.``GetHashCode : unit -> int``
-                call R.System.Console.``WriteLine : int -> unit``
+                call Methods.System.Type.``GetTypeFromHandle : System.RuntimeTypeHandle -> System.Type``
+                callvirt Methods.System.Type.``GetHashCode : unit -> int``
+                call Methods.System.Console.``WriteLine : int -> unit``
                 ret
             }
             

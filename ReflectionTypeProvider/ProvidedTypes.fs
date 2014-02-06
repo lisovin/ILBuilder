@@ -8,7 +8,7 @@
 //
 // This code is a sample for use in conjunction with the F# 3.0 Beta release of March 2012
 
-namespace ILBuilder.Providers
+namespace ReflectionTypeProvider
 
 open System
 open System.Text

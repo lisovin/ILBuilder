@@ -5,13 +5,13 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>b466c44e-37ff-44f7-90f8-f95ab2b70edb</ProjectGuid>
+    <ProjectGuid>d4524b22-fa6d-4427-bc1c-36c50c6a3965</ProjectGuid>
     <OutputType>Library</OutputType>
-    <RootNamespace>ILBuilder</RootNamespace>
-    <AssemblyName>ILBuilder</AssemblyName>
+    <RootNamespace>ReflectionTypeProvider</RootNamespace>
+    <AssemblyName>ReflectionTypeProvider</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <TargetFSharpCoreVersion>4.3.1.0</TargetFSharpCoreVersion>
-    <Name>ILBuilder</Name>
+    <Name>ReflectionTypeProvider</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -21,7 +21,7 @@
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>bin\Debug\ILBuilder.XML</DocumentationFile>
+    <DocumentationFile>bin\Debug\ReflectionTypeProvider.XML</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -30,12 +30,9 @@
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>bin\Release\ILBuilder.XML</DocumentationFile>
+    <DocumentationFile>bin\Release\ReflectionTypeProvider.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="IKVM.Reflection">
-      <HintPath>C:\Dev\Projects\ILBuilder\ILBuilder\IKVM.Reflection.dll</HintPath>
-    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <Private>True</Private>
@@ -45,11 +42,10 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Utils.fs" />
-    <Compile Include="Builders.fs" />
-    <None Include="Sandbox.fsx" />
-    <None Include="Disassemble.fsx" />
-    <None Include="ILBuilder.nuspec" />
+    <Compile Include="ProvidedTypes.fs" />
+    <Compile Include="ReflectionProvider.fs" />
+    <None Include="Script.fsx" />
+    <None Include="ReflectionTypeProvider.nuspec" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>

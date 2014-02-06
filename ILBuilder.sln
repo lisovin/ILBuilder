@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ILBuilder", "ILBuilder\ILBuilder.fsproj", "{B466C44E-37FF-44F7-90F8-F95AB2B70EDB}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "ReflectionTypeProvider", "ReflectionTypeProvider\ReflectionTypeProvider.fsproj", "{D4524B22-FA6D-4427-BC1C-36C50C6A3965}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{B466C44E-37FF-44F7-90F8-F95AB2B70EDB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B466C44E-37FF-44F7-90F8-F95AB2B70EDB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B466C44E-37FF-44F7-90F8-F95AB2B70EDB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4524B22-FA6D-4427-BC1C-36C50C6A3965}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4524B22-FA6D-4427-BC1C-36C50C6A3965}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4524B22-FA6D-4427-BC1C-36C50C6A3965}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4524B22-FA6D-4427-BC1C-36C50C6A3965}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
