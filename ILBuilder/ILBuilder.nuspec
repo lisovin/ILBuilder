@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>ILBuilder</id>
+    <version>0.1.0.1</version>
+    <title>ILBuilder</title>
+    <authors>Peter Lisovin</authors>
+    <owners>Peter Lisovin</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>MSIL computation expression builder for F# implemented using IKVM.Reflection API.</description>
+    <tags>msil ilbuilder fsharp</tags>
+    <projectUrl>https://github.com/lisovin/ILBuilder</projectUrl>
+  </metadata>
+  <files>
+    <file src="bin\Debug\IKVM.Reflection.dll" target="lib\net40" />
+    <file src="bin\Debug\ILBuilder.dll" target="lib\net40" />
+    <file src="bin\Debug\IKVM.Reflection.dll" target="lib\net45" />
+  </files>
+</package>

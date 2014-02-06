@@ -8,6 +8,11 @@ open IKVM.Reflection.Emit
 
 open Microsoft.FSharp.Quotations
 
+type Test() = 
+    member x.JustGet
+        with get() = 
+            System.String([|'a'; 'b'|])
+       
 module internal Utils = 
     module Seq = 
         let toString sep (xs : _ seq) = String.Join(sep, xs)
@@ -16,6 +21,7 @@ module internal Utils =
         f x
         g x
 
+    let toSystemType (t : Type) = System.Type.GetType(t.FullName)
     let ofType (u : Universe) (t : System.Type) = if t = null then null else u.Import(t)
     let ofTypes (u : Universe) (ts : System.Type[]) = ts |> Array.map (ofType u)
     let ofMethodInfo (u : Universe) (mi : System.Reflection.MethodInfo) =     
@@ -43,7 +49,7 @@ module internal Utils =
     let ofConstructorInfo (u : Universe) (ci : System.Reflection.ConstructorInfo) =     
         let t = ci.DeclaringType |> ofType u
         let ps = ci.GetParameters() |> Array.map (fun p -> p.ParameterType |> ofType u)
-        let ci = t.GetMethod(ci.Name, ps)
+        let ci = t.GetConstructor(ps)
         ci
 
     let ofFieldInfo (u : Universe) (fi : System.Reflection.FieldInfo) =

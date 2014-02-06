@@ -1,11 +1,11 @@
 ﻿#r @"C:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\IKVM.Reflection.dll"
 #r @"C:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\ILBuilder.dll"
-
 open ILBuilder
 
+open System
+open System.Reflection
 open ReflectionProvider
-type R = Reflected<Assemblies = "mscorlib;ILBuilder">
-
+type R = Reflected<"">
 
 assembly @"c:\temp\MyAssembly.dll" {
     for n in [0..1] do
@@ -13,13 +13,31 @@ assembly @"c:\temp\MyAssembly.dll" {
             do! publicDefaultEmptyConstructor
         
             do! publicAutoProperty<string> "MyProp" { get; set }
+            
+            do! publicProperty<string> "JustGet" {
+                do! get {
+                    ldc_i4_2
+                    newarr typeof<char>
+                    dup
+                    ldc_i4_0
+                    ldc_i4_s 'a'
+                    stelem typeof<char>
+                    dup
+                    ldc_i4_1
+                    ldc_i4_s 'b'
+                    stelem typeof<char>
+                    newobj (NewobjArg.Constructor R.System.String.``new : char[] -> string``)
+                    ret
+                }
+            }
+
             do! publicMethod<string> "GetFoo" [] {
                 ldstr "Bar"
                 ret
             }
-            
+
             do! publicVoidMethod "DoIt" [] {
-                ldtoken (Type typeof<System.String>)
+                ldtoken (LdtokenArg.Type typeof<System.String>)
                 call R.System.Type.``GetTypeFromHandle : System.RuntimeTypeHandle -> System.Type``
                 callvirt R.System.Type.``GetHashCode : unit -> int``
                 call R.System.Console.``WriteLine : int -> unit``
@@ -33,6 +51,8 @@ assembly @"c:\temp\MyAssembly.dll" {
 
 #r @"c:\temp\MyAssembly.dll"
 let t0 = Test_0()
+
+t0.JustGet
 t0.DoIt()
 
 t0.MyProp<- "t0"

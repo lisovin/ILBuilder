@@ -226,12 +226,12 @@ type EmitBuilder() =
 
     [<CustomOperation("ldc_i4", MaintainsVariableSpace = true)>]
     member __.ldc_i4(f, num : int) = f +> emitInt32 OpCodes.Ldc_I4 num 
-
+    (*
     [<CustomOperation("ldc_i4_s", MaintainsVariableSpace = true)>]
     member __.ldc_i4_s(f, num : sbyte) = f +> emitSByte OpCodes.Ldc_I4_S num 
-
+    *)
     [<CustomOperation("ldc_i4_s", MaintainsVariableSpace = true)>]
-    member __.ldc_i4_s (f, ch : char) = fun (il : ILGenerator) -> il.Emit(OpCodes.Ldc_I4_S, sbyte ch)
+    member __.ldc_i4_s (f, ch : char) = f +> emitSByte OpCodes.Ldc_I4_S (sbyte ch)
 
     [<CustomOperation("ldc_i8", MaintainsVariableSpace = true)>]
     member __.ldc_i8(f, num : int64) = f +> emitInt64 OpCodes.Ldc_I8 num 
@@ -681,6 +681,9 @@ type EmitBuilder() =
     [<CustomOperation("shr_un", MaintainsVariableSpace = true)>]
     member __.shr_un(f) = f +> emit OpCodes.Shr_Un
 
+    [<CustomOperation("stelem", MaintainsVariableSpace = true)>]
+    member __.stelem(f, ty) = f +> emitType OpCodes.Stelem ty
+
     [<CustomOperation("stelem_i", MaintainsVariableSpace = true)>]
     member __.stelem_i(f) = f +> emit OpCodes.Stelem_I
 
@@ -758,7 +761,6 @@ type EmitBuilder() =
     
     member __.Yield(unit) = fun (u : Universe, il : ILGenerator) -> ()
 
-//type State<'s> = State of ('s -> unit)
 type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?export : string * int) = 
     inherit EmitBuilder()
 
@@ -772,6 +774,21 @@ type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?export 
             |_ -> ()
             methodBuilder
 
+type PropertyAccessor = Get | Set
+
+type IKVMPropertyAccessorBuilder(accessor) = 
+    inherit EmitBuilder()
+
+    let prefix = match accessor with | Get -> "get" | Set -> "set"
+    member __.Run(f) =
+        fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) ->
+            let methodBuilder = tb.DefineMethod(prefix + "_" + pb.Name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, pb.PropertyType, Type.EmptyTypes)
+            let il = methodBuilder.GetILGenerator()
+            f(u, il)
+            match accessor with
+            | Get -> pb.SetGetMethod(methodBuilder)
+            | Set -> pb.SetSetMethod(methodBuilder)
+        
 type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) = 
     let mutable propField = null
 
@@ -806,6 +823,21 @@ type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) =
         fun (u : Universe, tb : TypeBuilder) -> 
             let pb = tb.DefineProperty(name, PropertyAttributes.None, returnType |> Utils.ofType u, parameterTypes |> Utils.ofTypes u)
             propField <- tb.DefineField(name, returnType |> Utils.ofType u, FieldAttributes.Private)
+            f(u, tb, pb) |> ignore
+            pb
+
+type IKVMPropertyBuilder(name : string, atts, returnType, parameterTypes) = 
+    member __.Bind(define, definesBinding : unit -> Universe * TypeBuilder * PropertyBuilder -> 'r) = 
+        fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) ->
+            let result = define(u, tb, pb)
+            let defines = definesBinding()
+            defines(u, tb, pb)
+
+    member __.Return(x) = fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) -> x
+
+    member __.Run(f) = 
+        fun (u : Universe, tb : TypeBuilder) -> 
+            let pb = tb.DefineProperty(name, PropertyAttributes.None, returnType |> Utils.ofType u, parameterTypes |> Utils.ofTypes u)
             f(u, tb, pb) |> ignore
             pb
             
@@ -922,11 +954,52 @@ module Helpers =
     (*
      * Properties
      *)
-    let publicAutoProperty<'t> propName = 
-        IKVMAutoPropertyBuilder(propName, PropertyAttributes.None, typeof<'t>, [||])
+    let publicAutoPropertyOfType propType propName = 
+        IKVMAutoPropertyBuilder(propName, PropertyAttributes.None, propType, [||])
 
+    let publicAutoProperty<'t> propName = 
+        publicAutoPropertyOfType typeof<'t> propName
+
+    let publicPropertyOfType propType propName = 
+        IKVMPropertyBuilder(propName, PropertyAttributes.None, propType, [||])
+
+    let publicProperty<'t> propName =
+        publicPropertyOfType typeof<'t> propName
+
+    let propertyAccessor kind = IKVMPropertyAccessorBuilder(kind)
+    let get = propertyAccessor Get
+    let set = propertyAccessor Set
+    (*
+        IKVMMethodBuilder("get_" + pb.Name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, pb.PropertyType |> Utils.toSystemType, System.Type.EmptyTypes)
+        *)
+            (*let getter = il {
+                ldarg_0
+                ret
+            }
+            pb.SetGetMethod(getter(u, tb))*)
+        (*
+    let publicPropertyBackedByField<'t> propName fieldBuilder = 
+        publicPropertyBackedByFieldOfType typeof<'t> propName
+    *)
     (*
      * Save
      *)
     let saveAssembly (ab : AssemblyBuilder) = 
         ab.Save(ab.GetName().Name + ".dll")
+        
+        (*
+module F = 
+    assembly "" {
+        do! publicType "" {
+            do! publicProperty<string> "" {
+                do! get {
+                    ret
+                }
+                
+                //get {
+                //    ret 
+                //}
+            }
+        }
+    } |> ignore
+    *)

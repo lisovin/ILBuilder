@@ -1,9 +1,30 @@
 ﻿namespace ILBuilder.Providers
 
+open System
 open System.Collections.Generic
 open System.Reflection
+open System.IO
 
 open Microsoft.FSharp.Core.CompilerServices
+
+type private Member =
+| Method of MethodInfo
+| Constructor of ConstructorInfo
+    member x.MetadataToken 
+        with get() = 
+            match x with
+            | Method mi -> mi.MetadataToken
+            | Constructor c -> c.MetadataToken
+    member x.MemberType
+        with get() = 
+            match x with 
+            | Method _ -> typeof<MethodInfo>
+            | Constructor _ -> typeof<ConstructorInfo>
+    member x.DeclaringType
+        with get() = 
+            match x with
+            | Method mi -> mi.DeclaringType
+            | Constructor ci -> ci.DeclaringType            
 
 [<TypeProvider>]
 type ReflectionProvider() =
@@ -11,7 +32,7 @@ type ReflectionProvider() =
 
     let staticParams = 
         [
-            ProvidedStaticParameter("Assemblies", typeof<string>)
+            ProvidedStaticParameter("Assemblies", typeof<string>, "mscorlib")
         ]
     let thisAssembly = Assembly.GetExecutingAssembly()
     let rootNamespace = "ReflectionProvider"
@@ -19,7 +40,7 @@ type ReflectionProvider() =
 
     let lookup = Dictionary()
 
-    let prettyPrintSig (m:MethodInfo) verbose = 
+    let prettyPrintSig mem verbose = 
         let prettyPrintTy = function
         | ty when ty = typeof<bool> -> "bool"
         | ty when ty = typeof<byte> -> "byte"
@@ -60,57 +81,85 @@ type ReflectionProvider() =
         | ty when ty = typeof<obj[]> -> "obj[]"
         | ty -> ty.FullName
         
-        let ps = m.GetParameters() 
         let prettyPrintParm (p:ParameterInfo) =
             if verbose then
                 sprintf " %s:%s " p.Name (prettyPrintTy p.ParameterType)
             else
                 prettyPrintTy p.ParameterType
-        sprintf "%s : %s -> %s" m.Name (if ps.Length > 0 then System.String.Join("*", ps |> Array.map prettyPrintParm) else "unit") (prettyPrintTy m.ReturnType)
 
-    let rec addNested (t : ProvidedTypeDefinition) parts (mi : MethodInfo) level = 
+        let ps, name, returnType = match mem with
+                                   | Method mi -> mi.GetParameters() , mi.Name, mi.ReturnType
+                                   | Constructor ci -> ci.GetParameters(), "new", ci.DeclaringType
+
+        sprintf "%s : %s -> %s" name (if ps.Length > 0 then System.String.Join("*", ps |> Array.map prettyPrintParm) else "unit") (prettyPrintTy returnType)
+
+    let rec addNested (t : ProvidedTypeDefinition) parts (mem : Member) level = 
         match parts with
         | [] -> 
-            let tok = mi.MetadataToken
-            let name = prettyPrintSig mi false
+            let tok = mem.MetadataToken
+            let name = prettyPrintSig mem false
+            let ty = mem.DeclaringType 
+            let typeName = ty.FullName
+            let assemblyName = ty.Assembly.GetName().Name
             t.AddMemberDelayed (fun () -> 
                 let p = ProvidedProperty(name, 
-                                         typeof<MethodInfo>, 
+                                         mem.MemberType,
                                          IsStatic = true, 
                                          GetterCode = fun args -> 
-                                         <@@ typeof<int>.Assembly.ManifestModule.ResolveMethod(tok) @@>)
-                p.AddXmlDoc(prettyPrintSig mi true)
+                                         <@@ //printfn "--->ty: %s" typeName
+                                             let asm = Assembly.Load(assemblyName)
+                                             let ty = asm.GetType(typeName)
+                                             //printfn "--->type: %s" ty.FullName
+                                             asm.ManifestModule.ResolveMethod(tok) @@>)
+                p.AddXmlDoc(prettyPrintSig mem true)
                 p)
         | p::parts ->
             t.AddMembersDelayed(fun () -> 
                 let level = p :: level
                 match lookup.TryGetValue(level) with
                 | true, t -> 
-                    addNested t parts mi level
+                    addNested t parts mem level
                     []
                 | _ -> 
+                    printfn "Add level %s" p
                     let pt = ProvidedTypeDefinition(p, None)
                     lookup.Add(level, pt)
-                    addNested pt parts mi level
+                    addNested pt parts mem level
                     [pt])
 
 
     let loader (typeName, assemblyNames : string) = 
         let t = ProvidedTypeDefinition(thisAssembly, rootNamespace, typeName, None, IsErased = true)
-        for assemblyName in assemblyNames.Split(';') do
+        let assemblyNames = assemblyNames.Split(';')
+                            |> Seq.filter ((<>)String.Empty)
+                            |> Seq.append ["mscorlib"]
+                            |> Seq.distinct
+                            |> Seq.toArray
+
+        for assemblyName in assemblyNames do
             let assembly = Assembly.Load(assemblyName)
-            let typesAndMethods = 
+            let typesAndMembers = 
                 assembly.ExportedTypes
                 |> Seq.filter (fun ty -> ty <> typeof<System.Void>)
-                |> Seq.collect (fun ty -> ty.GetMethods() |> Seq.map (fun mi -> ty, mi))
+                |> Seq.collect (fun ty -> 
+                    let ms = ty.GetMethods() |> Seq.map (Method)
+                    let cs = ty.GetConstructors() |> Seq.map (Constructor)
+                    ms |> Seq.append cs
+                       |> Seq.map (fun m -> ty, m))
                 |> Seq.toArray
 
-            typesAndMethods
-            |> Seq.iter (fun (ty, mi) ->
-                //printfn "--->%s" ty.FullName
+            for ty, m in typesAndMembers do
+                //printfn "Processing type %s method %A" ty.FullName m
                 let parts = (if ty.Namespace = null then [] else ty.Namespace.Split '.' |> Seq.toList) @ [ty.Name]
-                addNested t parts mi [])
+                addNested t parts m []
         t
+
+    do AppDomain.CurrentDomain.add_AssemblyResolve(fun s e -> 
+        //File.AppendAllText(@"c:\temp\ilbuilder.log", sprintf "--->resolving %s\n" e.Name)
+        let a = typeof<int32>.Assembly
+        //File.AppendAllText(@"c:\temp\ilbuilder.log", sprintf "--->code base: %s\n" a.CodeBase)
+        let p = Path.Combine(Path.GetDirectoryName((Uri a.CodeBase).AbsolutePath), e.Name + ".dll")
+        Assembly.LoadFile(p))
 
     do containerType.DefineStaticParameters(
             staticParams,
@@ -121,4 +170,5 @@ type ReflectionProvider() =
     do base.AddNamespace(rootNamespace, [containerType])
 
 [<TypeProviderAssembly>] 
-do()
+do ()
+

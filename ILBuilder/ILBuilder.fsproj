@@ -51,6 +51,7 @@
     <Compile Include="ReflectionProvider.fs" />
     <None Include="Sandbox.fsx" />
     <None Include="Disassemble.fsx" />
+    <None Include="ILBuilder.nuspec" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
