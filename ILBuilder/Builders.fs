@@ -920,18 +920,40 @@ module Helpers =
     (*
      * Methods
      *)
+    let methodOfTypeWithAtts atts returnType name parameterTypes = 
+        let returnType = 
+            match typeof<'TReturnType> with 
+            | t when t = typeof<unit> -> typeof<System.Void>
+            | t -> t
+        IKVMMethodBuilder(name, atts, returnType, parameterTypes |> Seq.toArray)
+        
     let publicMethod<'TReturnType> name (parameterTypes : seq<System.Type>) = 
         let returnType = 
             match typeof<'TReturnType> with 
             | t when t = typeof<unit> -> typeof<System.Void>
             | t -> t
-        IKVMMethodBuilder(name, MethodAttributes.Public, returnType, parameterTypes |> Seq.toArray)
+        methodOfTypeWithAtts MethodAttributes.Public returnType name parameterTypes
 
     let publicVoidMethod name parameterTypes = 
         publicMethod<unit> name parameterTypes
     
-    let privateStaticMethod methodName returnType parameters = 
-        IKVMMethodBuilder(methodName, MethodAttributes.Private ||| MethodAttributes.Static, returnType, parameters)
+    let privateStaticMethodOfType returnType name parameterTypes = 
+       methodOfTypeWithAtts (MethodAttributes.Private ||| MethodAttributes.Static) returnType name parameterTypes
+
+    let privateStaticMethod<'TReturnType> returnType name parameterTypes = 
+        privateStaticMethodOfType typeof<'TReturnType> name parameterTypes
+
+    let privateStaticVoidMethod returnType name parameterTypes = 
+        privateStaticMethod<unit> name parameterTypes
+
+    let publicStaticMethodOfType returnType name parameterTypes = 
+        methodOfTypeWithAtts (MethodAttributes.Public ||| MethodAttributes.Static) returnType name parameterTypes
+
+    let publicStaticMethod<'TReturnType> name parameterTypes = 
+        publicStaticMethodOfType typeof<'TReturnType> name parameterTypes
+
+    let publicStaticVoidMethod name parameterTypes = 
+        publicStaticMethod<unit> name parameterTypes
 
     let publicStaticMethod_Exported methodName returnType parameters exportIndex = 
         IKVMMethodBuilder(methodName, MethodAttributes.Public ||| MethodAttributes.Static, returnType, parameters, (methodName, exportIndex))

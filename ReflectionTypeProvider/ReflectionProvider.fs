@@ -108,7 +108,6 @@ type ReflectionProvider() =
                                          GetterCode = fun args -> 
                                          <@@ //printfn "--->ty: %s" typeName
                                              let asm = Assembly.Load(assemblyName)
-                                             let ty = asm.GetType(typeName)
                                              //printfn "--->type: %s" ty.FullName
                                              asm.ManifestModule.ResolveMethod(tok) @@>)
                 p.AddXmlDoc(prettyPrintSig mem true)
@@ -139,7 +138,7 @@ type ReflectionProvider() =
         for assemblyName in assemblyNames do
             let assembly = Assembly.Load(assemblyName)
             let typesAndMembers = 
-                assembly.ExportedTypes
+                assembly.GetExportedTypes()
                 |> Seq.filter (fun ty -> ty <> typeof<System.Void>)
                 |> Seq.collect (fun ty -> 
                     let ms = ty.GetMethods() |> Seq.map (Method)
