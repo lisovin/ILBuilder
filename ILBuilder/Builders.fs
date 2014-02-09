@@ -869,6 +869,34 @@ type IKVMTypeBuilder(name, atts) =
             f(universe, typeBuilder) |> ignore
             typeBuilder.CreateType() 
 
+type IKVMNestedTypeBuilder(name, atts) = 
+    // let!
+    member __.Bind(define, definesBinding : 'b -> Universe * TypeBuilder -> 'r) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            let bound = define(u, tb)
+            let defines = definesBinding(bound)
+            defines(u, tb)
+    // do!
+    member __.Bind(define, definesBinding : unit -> Universe * TypeBuilder -> 'r) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            let result = define(u, tb)
+            let defines = definesBinding()
+            defines(u, tb)
+    
+    member __.Return(x) = fun (u : Universe, tb : TypeBuilder) -> x
+
+    member __.For(xs, f) = 
+        fun (u : Universe, tb : TypeBuilder) ->
+            for x in xs do
+                let define = f(x)
+                define(u, tb)
+
+    member __.Run(f) =   
+        fun (u : Universe, typeBuilder : TypeBuilder) -> 
+            let tb = typeBuilder.DefineNestedType(name, atts)
+            f(u, tb) |> ignore
+            tb.CreateType() 
+
 type IKVMAssemblyBuilder(assemblyPath) = 
     let universe = new Universe()
     let name = Path.GetFileNameWithoutExtension(assemblyPath)
@@ -906,8 +934,11 @@ module Helpers =
     (*
      * Types
      *)
-    let publicType typeName = 
-        IKVMTypeBuilder(typeName, TypeAttributes.Public)
+    let publicType typeName = IKVMTypeBuilder(typeName, TypeAttributes.Public)
+
+    let internalType typeName = IKVMTypeBuilder(typeName, TypeAttributes.NotPublic)
+
+    let nestedPublicType typeName = IKVMNestedTypeBuilder(typeName, TypeAttributes.NestedPublic)
 
     (*
      * Constructors
@@ -922,7 +953,7 @@ module Helpers =
      *)
     let methodOfTypeWithAtts atts returnType name parameterTypes = 
         let returnType = 
-            match typeof<'TReturnType> with 
+            match returnType with 
             | t when t = typeof<unit> -> typeof<System.Void>
             | t -> t
         IKVMMethodBuilder(name, atts, returnType, parameterTypes |> Seq.toArray)
@@ -1008,7 +1039,15 @@ module Helpers =
      *)
     let saveAssembly (ab : AssemblyBuilder) = 
         ab.Save(ab.GetName().Name + ".dll")
-        
+
+(*  
+module TestIL = 
+    type Parent() = 
+        member p.Bar() = ()
+        type Child() = 
+            member c.Foo() = ()
+*)
+
         (*
 module F = 
     assembly "" {
@@ -1024,4 +1063,4 @@ module F =
             }
         }
     } |> ignore
-    *)
+   *) 
