@@ -761,12 +761,21 @@ type EmitBuilder() =
     
     member __.Yield(unit) = fun (u : Universe, il : ILGenerator) -> ()
 
-type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?export : string * int) = 
+type BuilderType =
+| ClrType of System.Type
+| IkvmType of Type
+    static member ToIkvmType (u : Universe) x = 
+        match x with
+        | ClrType ty -> ty |> Utils.ofType u
+        | IkvmType ty -> ty
+
+
+type IKVMMethodBuilder(name : string, atts, returnType : BuilderType, parameterTypes, ?export : string * int) = 
     inherit EmitBuilder()
 
     member __.Run(f : Universe * ILGenerator -> unit) = 
         fun (u : Universe, tb : TypeBuilder) ->
-            let methodBuilder = tb.DefineMethod(name, atts, returnType |> Utils.ofType u, parameterTypes |> Utils.ofTypes u)
+            let methodBuilder = tb.DefineMethod(name, atts, returnType |> BuilderType.ToIkvmType u, parameterTypes |> Array.map (BuilderType.ToIkvmType u))
             let il = methodBuilder.GetILGenerator()
             f (u, il)
             match export with
@@ -796,7 +805,7 @@ type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) =
     member __.Getter(f) = 
         fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) -> 
             f(u, tb, pb)
-            let il = IKVMMethodBuilder("get_" + name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, returnType, System.Type.EmptyTypes)
+            let il = IKVMMethodBuilder("get_" + name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, returnType, System.Type.EmptyTypes |> Array.map ClrType)
             let getter = il {
                 ldarg_0
                 ldfld (FieldBuilder propField)
@@ -808,7 +817,7 @@ type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) =
     member __.Setter(f) = 
         fun (u : Universe, tb : TypeBuilder, pb : PropertyBuilder) -> 
             f(u, tb, pb)
-            let il = IKVMMethodBuilder("set_" + name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, null, [|returnType|])
+            let il = IKVMMethodBuilder("set_" + name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, ClrType typeof<System.Void>, [|returnType|])
             let setter = il {
                 ldarg_0
                 ldarg_1
@@ -821,8 +830,9 @@ type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) =
 
     member __.Run(f) = 
         fun (u : Universe, tb : TypeBuilder) -> 
-            let pb = tb.DefineProperty(name, PropertyAttributes.None, returnType |> Utils.ofType u, parameterTypes |> Utils.ofTypes u)
-            propField <- tb.DefineField(name, returnType |> Utils.ofType u, FieldAttributes.Private)
+            let rty = returnType |> BuilderType.ToIkvmType u
+            let pb = tb.DefineProperty(name, PropertyAttributes.None, rty, parameterTypes |> Array.map (BuilderType.ToIkvmType u))
+            propField <- tb.DefineField(name, rty, FieldAttributes.Private)
             f(u, tb, pb) |> ignore
             pb
 
@@ -856,6 +866,8 @@ type IKVMTypeBuilder(name, atts) =
             defines(u, tb)
     
     member __.Return(x) = fun (u : Universe, tb : TypeBuilder) -> x
+
+    member __.Zero() = fun (u : Universe, tb : TypeBuilder) -> ()
 
     member __.For(xs, f) = 
         fun (u : Universe, tb : TypeBuilder) ->
@@ -895,41 +907,50 @@ type IKVMNestedTypeBuilder(name, atts) =
         fun (u : Universe, typeBuilder : TypeBuilder) -> 
             let tb = typeBuilder.DefineNestedType(name, atts)
             f(u, tb) |> ignore
-            tb.CreateType() 
+            tb.CreateType()
 
-type IKVMAssemblyBuilder(assemblyPath) = 
-    let universe = new Universe()
-    let name = Path.GetFileNameWithoutExtension(assemblyPath)
-    let filename = Path.GetFileName(assemblyPath)
-    let directory = Path.GetDirectoryName(assemblyPath)
-    let assemblyName = AssemblyName(name)
-    let universe = new Universe()
-    let assemblyBuilder = universe.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Save, directory)
-    let moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, filename)
+//type AR = AR of Universe * ModuleBuilder * (Universe * ModuleBuilder -> 'a)
 
-    member __.Bind(define, definesBinding : 'b -> 'r) = 
-        let bound = define(universe, moduleBuilder)
-        definesBinding(bound)
+type IKVMAssemblyBuilder() = 
+    member __.Bind(define, definesBinding) = 
+        fun (u : Universe, mb : ModuleBuilder) ->
+            let bound : Type = define(u, mb)
+            //definesBinding(bound)
+            let rest : Universe * ModuleBuilder -> unit = definesBinding(bound)
+            rest(u, mb)
+    
+    member __.Bind(define, definesBinding) = 
+        fun (u : Universe, mb : ModuleBuilder) ->
+            let bound = define(u, mb)
+            //definesBinding()
+            let rest : Universe * ModuleBuilder -> unit = definesBinding()
+            rest(u, mb) 
+       
+    member __.Return(x) = fun (u : Universe, mb : ModuleBuilder) -> x
 
-    member __.Bind(define, definesBinding : unit -> 'r) = 
-        let result = define(universe, moduleBuilder)
-        definesBinding()
-
-    member __.Return(x) = x
-
-    //member __.Zero() = () 
+    member __.Zero() = fun (u : Universe, mb : ModuleBuilder) -> ()
 
     member __.For(xs, f) = 
-        for x in xs do
-            f(x)
+        fun (u : Universe, mb : ModuleBuilder) ->
+            for x in xs do
+                let d = f(x)
+                d(u, mb)
             //define() |> ignore
 
     member __.Run(f) =   
-        assemblyBuilder
+        fun (universe : Universe, assemblyPath) ->
+            let name = Path.GetFileNameWithoutExtension(assemblyPath)
+            let filename = Path.GetFileName(assemblyPath)
+            let directory = Path.GetDirectoryName(assemblyPath)
+            let assemblyName = AssemblyName(name)
+            let assemblyBuilder = universe.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Save, directory)
+            let moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, filename)
+            f(universe, moduleBuilder) |> ignore
+            assemblyBuilder
 
 [<AutoOpen>]
 module Helpers =
-    let assembly assemblyPath = IKVMAssemblyBuilder(assemblyPath)
+    let assembly = IKVMAssemblyBuilder()
 
     (*
      * Types
@@ -954,16 +975,16 @@ module Helpers =
     let methodOfTypeWithAtts atts returnType name parameterTypes = 
         let returnType = 
             match returnType with 
-            | t when t = typeof<unit> -> typeof<System.Void>
-            | t -> t
+            | t when t = typeof<unit> -> ClrType typeof<System.Void>
+            | t -> ClrType t
         IKVMMethodBuilder(name, atts, returnType, parameterTypes |> Seq.toArray)
         
-    let publicMethod<'TReturnType> name (parameterTypes : seq<System.Type>) = 
+    let publicMethod<'TReturnType> name parameterTypes = 
         let returnType = 
             match typeof<'TReturnType> with 
             | t when t = typeof<unit> -> typeof<System.Void>
             | t -> t
-        methodOfTypeWithAtts MethodAttributes.Public returnType name parameterTypes
+        methodOfTypeWithAtts MethodAttributes.Public returnType name (parameterTypes |> Seq.map ClrType |> Seq.toArray)
 
     let publicVoidMethod name parameterTypes = 
         publicMethod<unit> name parameterTypes
@@ -1011,7 +1032,7 @@ module Helpers =
         IKVMAutoPropertyBuilder(propName, PropertyAttributes.None, propType, [||])
 
     let publicAutoProperty<'t> propName = 
-        publicAutoPropertyOfType typeof<'t> propName
+        publicAutoPropertyOfType (ClrType typeof<'t>) propName
 
     let publicPropertyOfType propType propName = 
         IKVMPropertyBuilder(propName, PropertyAttributes.None, propType, [||])
@@ -1037,8 +1058,11 @@ module Helpers =
     (*
      * Save
      *)
-    let saveAssembly (ab : AssemblyBuilder) = 
-        ab.Save(ab.GetName().Name + ".dll")
+    let saveAssembly assemblyPath (f : Universe * string -> AssemblyBuilder) = 
+        use universe = new Universe()
+        let ab = f (universe, assemblyPath)
+        let name = ab.GetName().Name + ".dll"
+        ab.Save(name)
 
 (*  
 module TestIL = 
