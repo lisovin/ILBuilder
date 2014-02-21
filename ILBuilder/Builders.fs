@@ -762,10 +762,12 @@ type EmitBuilder() =
     member __.Yield(unit) = fun (u : Universe, il : ILGenerator) -> ()
 
 type BuilderType =
+| ThisType
 | ClrType of System.Type
 | IkvmType of Type
-    static member ToIkvmType (u : Universe) x = 
+    static member ToIkvmType (u : Universe) (declaringType : Type) x = 
         match x with
+        | ThisType -> declaringType
         | ClrType ty -> ty |> Utils.ofType u
         | IkvmType ty -> ty
 
@@ -775,7 +777,9 @@ type IKVMMethodBuilder(name : string, atts, returnType : BuilderType, parameterT
 
     member __.Run(f : Universe * ILGenerator -> unit) = 
         fun (u : Universe, tb : TypeBuilder) ->
-            let methodBuilder = tb.DefineMethod(name, atts, returnType |> BuilderType.ToIkvmType u, parameterTypes |> Array.map (BuilderType.ToIkvmType u))
+            let methodBuilder = tb.DefineMethod(name, atts)
+            methodBuilder.SetReturnType(returnType |> BuilderType.ToIkvmType u methodBuilder.DeclaringType)
+            methodBuilder.SetParameters(parameterTypes |> Array.map (BuilderType.ToIkvmType u methodBuilder.DeclaringType))
             let il = methodBuilder.GetILGenerator()
             f (u, il)
             match export with
@@ -830,8 +834,8 @@ type IKVMAutoPropertyBuilder(name : string, atts, returnType, parameterTypes) =
 
     member __.Run(f) = 
         fun (u : Universe, tb : TypeBuilder) -> 
-            let rty = returnType |> BuilderType.ToIkvmType u
-            let pb = tb.DefineProperty(name, PropertyAttributes.None, rty, parameterTypes |> Array.map (BuilderType.ToIkvmType u))
+            let rty = returnType |> BuilderType.ToIkvmType u tb.DeclaringType
+            let pb = tb.DefineProperty(name, PropertyAttributes.None, rty, parameterTypes |> Array.map (BuilderType.ToIkvmType u tb.DeclaringType))
             propField <- tb.DefineField(name, rty, FieldAttributes.Private)
             f(u, tb, pb) |> ignore
             pb
@@ -868,6 +872,13 @@ type IKVMTypeBuilder(name, atts) =
     member __.Return(x) = fun (u : Universe, tb : TypeBuilder) -> x
 
     member __.Zero() = fun (u : Universe, tb : TypeBuilder) -> ()
+
+    member __.Delay(f) = f()
+
+    member __.Combine(f1, f2) =
+        fun (u : Universe, tb : TypeBuilder) ->
+            f1(u, tb)    
+            f2(u, tb)
 
     member __.For(xs, f) = 
         fun (u : Universe, tb : TypeBuilder) ->

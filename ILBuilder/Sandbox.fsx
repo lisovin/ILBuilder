@@ -6,37 +6,6 @@
 open System
 open ILBuilder
 
-let ns = [0..3]
-let asm = assembly {
-    (*
-    let! ty = publicType "Table" {
-        do! publicDefaultEmptyConstructor 
-    } 
-    printfn "%A" ty
-
-    do! publicType ("Foo.Table") {
-        printfn "doing foo.table"
-        do! publicDefaultEmptyConstructor
-    }
-    
-    do! publicType ("Foo.Table2") {
-        printfn "doing foo.table2"
-        do! publicDefaultEmptyConstructor
-    }
-    *)
-    for n in ns do
-        let name = sprintf "Table_%d" n
-        let! ty = publicType name {
-            //printfn "doing Table_%d" n
-            do! publicDefaultEmptyConstructor
-        }
-
-        do! publicType ("Foo.Table2") {
-            printfn "doing foo.table2"
-            do! publicDefaultEmptyConstructor
-        }
-} 
-
 let tables = ["FooBar"]
 let toTableName name = name
 
@@ -51,6 +20,14 @@ assembly {
         do! publicType ("Foo.Table2") {
             printfn "doing foo.table2"
             do! publicDefaultEmptyConstructor
+
+            for n in 0..3 do
+                do! publicAutoProperty<string> (sprintf "Foo_%d" n) { get; }
+                
+            do! publicStaticMethod<string> "Insert" [ ThisType ] {
+                ldstr "Foobar"
+                ret
+            }
         }
         
         let! ty2 = publicType ("Db." + tableName) {
@@ -69,6 +46,8 @@ assembly {
         printfn "%A" ty2
 } |> saveAssembly @"c:\temp\test.dll"
 
+#r @"c:\temp\test.dll"
+Foo.Table2.Insert(Foo.Table2())
 
-
+Db.FooBar.FooBar.Insert(FooBar())
 
