@@ -19,11 +19,19 @@ assembly {
 
         do! publicType ("Foo.Table2") {
             printfn "doing foo.table2"
-            do! publicDefaultEmptyConstructor
+            let! cons = publicDefaultEmptyConstructor
+            let! m = publicStaticMethod<string> "Test" [] {
+                ret
+            }
 
             for n in 0..3 do
                 do! publicAutoProperty<string> (sprintf "Foo_%d" n) { get; }
                 
+            do! publicStaticMethodOfType ThisType "Query" [ClrType typeof<string>] {
+                newobj (IkvmConstructor cons)
+                ret
+            }
+
             do! publicStaticMethod<string> "Insert" [ ThisType ] {
                 ldstr "Foobar"
                 ret
@@ -47,6 +55,7 @@ assembly {
 } |> saveAssembly @"c:\temp\test.dll"
 
 #r @"c:\temp\test.dll"
+Foo.Table2.Query("")
 Foo.Table2.Insert(Foo.Table2())
 
 Db.FooBar.FooBar.Insert(FooBar())

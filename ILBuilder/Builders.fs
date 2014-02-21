@@ -15,8 +15,9 @@ type LdtokenArg =
 | Type of System.Type
 
 type NewobjArg = 
-| Constructor of System.Reflection.ConstructorInfo
-| ConstructorBuilder of Emit.ConstructorBuilder
+| ClrConstructor of System.Reflection.ConstructorInfo
+| IkvmConstructor of ConstructorInfo
+//| ConstructorBuilder of Emit.ConstructorBuilder
 | Type of System.Type
 
 type FieldArg = 
@@ -329,10 +330,10 @@ type EmitBuilder() =
         fun (u : Universe, il : ILGenerator) -> 
             f(u, il)
             match arg with
-            | NewobjArg.Constructor ci ->
+            | NewobjArg.ClrConstructor ci ->
                 il.Emit(OpCodes.Newobj, ofConstructorInfo u ci)
-            | NewobjArg.ConstructorBuilder cb ->
-                il.Emit(OpCodes.Newobj, cb)
+            | NewobjArg.IkvmConstructor ci ->
+                il.Emit(OpCodes.Newobj, ci)
             | NewobjArg.Type ty ->
                 let ci = (ofType u ty).GetConstructor([||])         
                 il.Emit(OpCodes.Newobj, ci)
@@ -856,18 +857,24 @@ type IKVMPropertyBuilder(name : string, atts, returnType, parameterTypes) =
             pb
             
 type IKVMTypeBuilder(name, atts) = 
-    // let!
-    member __.Bind(define, definesBinding : 'b -> Universe * TypeBuilder -> 'r) = 
+    let letBind define definesBinding = 
         fun (u : Universe, tb : TypeBuilder) ->
-            let bound = define(u, tb)
-            let defines = definesBinding(bound)
+            let bound = define(u, tb) 
+            let defines :  Universe * TypeBuilder -> unit = definesBinding(bound)
             defines(u, tb)
-    // do!
-    member __.Bind(define, definesBinding : unit -> Universe * TypeBuilder -> 'r) = 
+
+    let doBind define definesBinding = 
         fun (u : Universe, tb : TypeBuilder) ->
             let result = define(u, tb)
-            let defines = definesBinding()
+            let defines :  Universe * TypeBuilder -> unit = definesBinding()
             defines(u, tb)
+        
+    // let!
+    member __.Bind(define : Universe * TypeBuilder -> ConstructorBuilder, definesBinding) = letBind define definesBinding
+    member __.Bind(define : Universe * TypeBuilder -> IKVMMethodBuilder, definesBinding) = letBind define definesBinding 
+
+    // do!
+    member __.Bind(define, definesBinding) = doBind define definesBinding
     
     member __.Return(x) = fun (u : Universe, tb : TypeBuilder) -> x
 
@@ -894,9 +901,9 @@ type IKVMTypeBuilder(name, atts) =
 
 type IKVMNestedTypeBuilder(name, atts) = 
     // let!
-    member __.Bind(define, definesBinding : 'b -> Universe * TypeBuilder -> 'r) = 
+    member __.Bind(define, definesBinding) = 
         fun (u : Universe, tb : TypeBuilder) ->
-            let bound = define(u, tb)
+            let bound : ConstructorBuilder = define(u, tb)
             let defines = definesBinding(bound)
             defines(u, tb)
     // do!
@@ -986,16 +993,17 @@ module Helpers =
     let methodOfTypeWithAtts atts returnType name parameterTypes = 
         let returnType = 
             match returnType with 
-            | t when t = typeof<unit> -> ClrType typeof<System.Void>
-            | t -> ClrType t
+            | ClrType ty when ty = typeof<unit> -> ClrType typeof<System.Void>
+            | t -> t
         IKVMMethodBuilder(name, atts, returnType, parameterTypes |> Seq.toArray)
         
     let publicMethod<'TReturnType> name parameterTypes = 
-        let returnType = 
+        (*let returnType = 
             match typeof<'TReturnType> with 
             | t when t = typeof<unit> -> typeof<System.Void>
-            | t -> t
-        methodOfTypeWithAtts MethodAttributes.Public returnType name (parameterTypes |> Seq.map ClrType |> Seq.toArray)
+            | t -> t *)
+        let returnType = typeof<'TReturnType>
+        methodOfTypeWithAtts MethodAttributes.Public (ClrType returnType) name parameterTypes
 
     let publicVoidMethod name parameterTypes = 
         publicMethod<unit> name parameterTypes
@@ -1004,7 +1012,7 @@ module Helpers =
        methodOfTypeWithAtts (MethodAttributes.Private ||| MethodAttributes.Static) returnType name parameterTypes
 
     let privateStaticMethod<'TReturnType> returnType name parameterTypes = 
-        privateStaticMethodOfType typeof<'TReturnType> name parameterTypes
+        privateStaticMethodOfType (ClrType typeof<'TReturnType>) name parameterTypes
 
     let privateStaticVoidMethod returnType name parameterTypes = 
         privateStaticMethod<unit> name parameterTypes
@@ -1013,7 +1021,7 @@ module Helpers =
         methodOfTypeWithAtts (MethodAttributes.Public ||| MethodAttributes.Static) returnType name parameterTypes
 
     let publicStaticMethod<'TReturnType> name parameterTypes = 
-        publicStaticMethodOfType typeof<'TReturnType> name parameterTypes
+        publicStaticMethodOfType (ClrType typeof<'TReturnType>) name parameterTypes
 
     let publicStaticVoidMethod name parameterTypes = 
         publicStaticMethod<unit> name parameterTypes
