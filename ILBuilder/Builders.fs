@@ -997,6 +997,9 @@ module Helpers =
             | t -> t
         IKVMMethodBuilder(name, atts, returnType, parameterTypes |> Seq.toArray)
         
+    let publicMethodOfType returnType name parameterTypes = 
+        methodOfTypeWithAtts MethodAttributes.Public returnType name parameterTypes
+
     let publicMethod<'TReturnType> name parameterTypes = 
         (*let returnType = 
             match typeof<'TReturnType> with 
@@ -1062,48 +1065,18 @@ module Helpers =
     let propertyAccessor kind = IKVMPropertyAccessorBuilder(kind)
     let get = propertyAccessor Get
     let set = propertyAccessor Set
-    (*
-        IKVMMethodBuilder("get_" + pb.Name, MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.HideBySig, pb.PropertyType |> Utils.toSystemType, System.Type.EmptyTypes)
-        *)
-            (*let getter = il {
-                ldarg_0
-                ret
-            }
-            pb.SetGetMethod(getter(u, tb))*)
-        (*
-    let publicPropertyBackedByField<'t> propName fieldBuilder = 
-        publicPropertyBackedByFieldOfType typeof<'t> propName
-    *)
+
     (*
      * Save
      *)
     let saveAssembly assemblyPath (f : Universe * string -> AssemblyBuilder) = 
         use universe = new Universe()
+        universe.add_AssemblyResolve(fun sender args ->
+            let path = AppDomain.CurrentDomain.Load(args.Name).Location
+            if File.Exists(path)
+            then universe.LoadFile(path)
+            else null)
+
         let ab = f (universe, assemblyPath)
         let name = ab.GetName().Name + ".dll"
         ab.Save(name)
-
-(*  
-module TestIL = 
-    type Parent() = 
-        member p.Bar() = ()
-        type Child() = 
-            member c.Foo() = ()
-*)
-
-        (*
-module F = 
-    assembly "" {
-        do! publicType "" {
-            do! publicProperty<string> "" {
-                do! get {
-                    ret
-                }
-                
-                //get {
-                //    ret 
-                //}
-            }
-        }
-    } |> ignore
-   *) 
