@@ -20,6 +20,10 @@ let dis assemblyPath =
     let process = Process.Start(startInfo)
     process.WaitForExit()
 
+dis @"c:\temp\test.dll"
+File.ReadAllText(@"C:\temp\test.il")
+
+
 dis @"c:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\ILBuilder.dll"
 File.ReadAllText(@"c:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\ILBuilder.il")
 
@@ -30,6 +34,4 @@ File.ReadAllText(@"c:\temp\MyAssembly.il")
 dis @"C:\Dev\Temp\TestDemo\TestDemo\bin\Debug\TestDemo.dll"
 File.ReadAllText(@"C:\Dev\Temp\TestDemo\TestDemo\bin\Debug\TestDemo.il")
 
-dis @"c:\temp\test.dll"
-File.ReadAllText(@"C:\temp\test.il")
 

@@ -8,11 +8,6 @@ open IKVM.Reflection.Emit
 
 open Microsoft.FSharp.Quotations
 
-type Test() = 
-    member x.JustGet
-        with get() = 
-            System.String([|'a'; 'b'|])
-       
 module internal Utils = 
     module Seq = 
         let toString sep (xs : _ seq) = String.Join(sep, xs)
@@ -57,22 +52,67 @@ module internal Utils =
         let fi = t.GetField(fi.Name)
         fi
 
-    let internal emitLabel opcode (label : Label) (u : Universe, il : ILGenerator) = il.Emit(opcode, label)
-    let internal emit opcode (u : Universe, il : ILGenerator) = il.Emit(opcode)
-    let internal emitByte opcode (arg : byte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
-    let internal emitSByte opcode (arg : sbyte) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg)
-    let internal emitInt16 opcode (arg : int16) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-    let internal emitInt32 opcode (arg : int32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-    let internal emitInt64 opcode (arg : int64) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-    let internal emitFloat opcode (arg : float32) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-    let internal emitDouble opcode (arg : double) (u : Universe, il : ILGenerator) = il.Emit(opcode, arg) 
-    let internal emitType opcode (arg : System.Type) (u : Universe, il : ILGenerator) = il.Emit(opcode, ofType u arg)
-    //let internal emitType opcode (cls : Type) (u : Universe, il : ILGenerator) = il.Emit(opcode, cls)
-    let internal emitMethodInfo opcode mi (u : Universe, il : ILGenerator) = il.Emit(opcode, ofMethodInfo u mi) 
-    let internal emitConstructorInfo opcode (con : ConstructorInfo) (u : Universe, il : ILGenerator) = il.Emit(opcode, con) 
-    let internal emitFieldInfo opcode field (u : Universe, il : ILGenerator) = il.Emit(opcode, ofFieldInfo u field)
-    let internal emitString opcode (str : String) (u : Universe, il : ILGenerator) = il.Emit(opcode, str) 
-    let internal emitLocalBuilder opcode (local : LocalBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
-    let internal emitMethodBuilder opcode (local : MethodBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
-    let internal emitFieldBuilder opcode (local : FieldBuilder) (u : Universe, il : ILGenerator) = il.Emit(opcode, local) 
+type internal Emit private () = 
+    static member EmitOp(opcode) = 
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode)
+
+    static member EmitLabel(opcode, label : Label) = 
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, label)
+
+    static member EmitByte(opcode, arg : byte) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, arg)
+
+    static member EmitSByte(opcode, arg : sbyte) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, arg)
+
+    static member EmitInt16(opcode, arg : int16) = 
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, arg) 
+
+    static member EmitInt32(opcode, arg : int32) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, arg) 
+
+    static member EmitInt64(opcode, arg : int64) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, arg) 
+
+    static member EmitFloat(opcode, arg : float32) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, arg) 
+
+    static member EmitDouble(opcode, arg : double) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, arg) 
+
+    static member EmitType(opcode, arg : System.Type) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, Utils.ofType u arg)
+
+    static member EmitType(opcode, ty : Type) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, ty)
+
+    static member EmitMethod(opcode, methodInfo) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, Utils.ofMethodInfo u methodInfo) 
+
+    static member EmitMethod(opcode, methodInfo : MethodInfo) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, methodInfo) 
+
+    static member EmitMethod(opcode, methodBuilder : MethodBuilder) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, methodBuilder)
+
+    static member EmitConstructor(opcode, cons : System.Reflection.ConstructorInfo) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, Utils.ofConstructorInfo u cons) 
+
+    static member EmitConstructor(opcode, cons : ConstructorInfo) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, cons) 
+
+    static member EmitConstructor(opcode, cons : ConstructorBuilder) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, cons) 
+
+    static member EmitField(opcode, field) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, Utils.ofFieldInfo u field)
+
+    static member EmitField(opcode, fieldBuilder : FieldBuilder) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, fieldBuilder) 
+
+    static member EmitString(opcode, str : String) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, str) 
+
+    static member EmitLocal(opcode, local : LocalBuilder) =
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, local)
 

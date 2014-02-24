@@ -1,62 +1,36 @@
 ﻿//#r "bin/Debug/ILBuilder.dll"
 #r "bin/Debug/IKVM.Reflection.dll"
-#load "Utils.fs"
-#load "Builders.fs"
-
+//#load "Utils.fs"
+//#load "Builders.fs"
 open System
-open ILBuilder
+//open ILBuilder
 
-let tables = ["FooBar"]
-let toTableName name = name
+type TestBuilder() = 
+    [<CustomOperation("foo", MaintainsVariableSpaceUsingBind = false, AllowIntoPattern = true)>]
+    member __.foo (f, num : int) = 
+        sprintf "foo %d" num
 
-assembly {
-    for t in tables do
-        let tableName = toTableName t
-        let! ty = publicType tableName {
-            //printfn "doing Table_%d" n
-            do! publicDefaultEmptyConstructor
-        }
+    [<CustomOperation("bar", MaintainsVariableSpaceUsingBind = true)>]
+    member __.bar (s, num : int) =
+        sprintf "%s\nbar %d" s num
 
-        do! publicType ("Foo.Table2") {
-            printfn "doing foo.table2"
-            let! cons = publicDefaultEmptyConstructor
-            let! m = publicStaticMethod<string> "Test" [] {
-                ret
-            }
+    member __.Bind(f, r) = 
+        let bound = f()
+        r(bound)
 
-            for n in 0..3 do
-                do! publicAutoProperty<string> (sprintf "Foo_%d" n) { get; }
-                
-            do! publicStaticMethodOfType ThisType "Query" [ClrType typeof<string>] {
-                newobj (IkvmConstructor cons)
-                ret
-            }
+    member __.Zero() = ""
+    member __.Return(x) = "ret: "
+    member __.Yield(x) = ""
+    member __.Quote() = ()
+    member __.Run(f) = f 
 
-            do! publicStaticMethod<string> "Insert" [ ThisType ] {
-                ldstr "Foobar"
-                ret
-            }
-        }
-        
-        let! ty2 = publicType ("Db." + tableName) {
-            let columns = ""
-            let values = ""
-            
-            do! nestedPublicType tableName {
-                do! publicStaticMethod<string> "Insert" [IkvmType ty] {
-                    ldstr "adsf"
-                    ret
-                }
-            }
-            
-            printfn "end"
-        } 
-        printfn "%A" ty2
-} |> saveAssembly @"c:\temp\test.dll"
+let test = TestBuilder()
 
-#r @"c:\temp\test.dll"
-Foo.Table2.Query("")
-Foo.Table2.Insert(Foo.Table2())
-
-Db.FooBar.FooBar.Insert(FooBar())
+let t = test {
+    foo 5 into g
+    //let! x = fun () -> 3
+    //printfn "%d" x
+    foo x
+    //bar x
+}
 

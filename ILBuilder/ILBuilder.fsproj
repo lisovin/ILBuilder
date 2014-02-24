@@ -47,10 +47,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Utils.fs" />
+    <Compile Include="IL.fs" />
     <Compile Include="Builders.fs" />
+    <None Include="Array.fsx" />
     <None Include="Sandbox.fsx" />
     <None Include="Disassemble.fsx" />
     <None Include="ILBuilder.nuspec" />
+    <None Include="Types.fsx" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
