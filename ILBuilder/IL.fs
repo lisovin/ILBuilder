@@ -53,10 +53,10 @@ type IL private () =
                   let msg = sprintf "Method '%s' with parameters '%s' is not defined on type '%s'" methodName targetType.Name ps
                   InvalidOperationException(msg) |> raise
              else Emit.EmitMethod(OpCodes.Call, mi)
-    static member call (methodInfo : System.Reflection.MethodInfo) =     
-        Emit.EmitMethod(OpCodes.Call, methodInfo)
-    static member callvirt (methodInfo : System.Reflection.MethodInfo) = 
-        Emit.EmitMethod(OpCodes.Callvirt, methodInfo)
+    static member call (methodInfo : System.Reflection.MethodInfo) = Emit.EmitMethod(OpCodes.Call, methodInfo)
+    static member call (methodInfo : MethodInfo) = Emit.EmitMethod(OpCodes.Call, methodInfo)
+    static member callvirt (methodInfo : System.Reflection.MethodInfo) = Emit.EmitMethod(OpCodes.Callvirt, methodInfo)
+    static member callvirt (methodInfo : MethodInfo) = Emit.EmitMethod(OpCodes.Callvirt, methodInfo)
     static member castclass (ty : Type) = Emit.EmitType(OpCodes.Castclass, ty)
     static member castclass (ty : System.Type) = Emit.EmitType(OpCodes.Castclass, ty)
     static member ceq = Emit.EmitOp(OpCodes.Ceq)
@@ -125,6 +125,7 @@ type IL private () =
     static member markLabel (label : Label) = fun (il : ILGenerator) -> il.MarkLabel(label)
     static member mkrefany (elementType : System.Type)  = Emit.EmitType(OpCodes.Mkrefany, elementType)
     static member newarr (elementType : System.Type)  = Emit.EmitType(OpCodes.Newarr, elementType) 
+    static member newarr (elementType : IKVM.Reflection.Type)  = Emit.EmitType(OpCodes.Newarr, elementType) 
     static member newobj (cons : System.Reflection.ConstructorInfo) = Emit.EmitConstructor(OpCodes.Newobj, cons)
     static member newobj<'t when 't : (new : unit -> 't)>() = 
         let ci = typeof<'t>.GetConstructor([||])
@@ -146,7 +147,6 @@ type IL private () =
     static member stloc_s (local : LocalBuilder) = Emit.EmitLocal(OpCodes.Stloc_S, local)
     static member stobj (typ : Type) = Emit.EmitType(OpCodes.Stobj, typ)
     static member stsfld (fieldInfo : System.Reflection.FieldInfo) = Emit.EmitField(OpCodes.Stsfld, fieldInfo)
-    static member thisType = fun (u : Universe, il : ILGenerator, mb : MethodBuilder) -> mb.DeclaringType
     static member unaligned label = Emit.EmitLabel(OpCodes.Unaligned, label)
     static member unaligned (addr : int64) = Emit.EmitInt64(OpCodes.Unaligned, addr)
     static member unbox (typ : Type) = Emit.EmitType(OpCodes.Unbox, typ)
@@ -245,6 +245,10 @@ type IL private () =
     static member shl = Emit.EmitOp(OpCodes.Shl)
     static member shr = Emit.EmitOp(OpCodes.Shr)
     static member shr_un = Emit.EmitOp(OpCodes.Shr_Un)
+    static member stelem (ty : Type) = Emit.EmitType(OpCodes.Stelem, ty)
+    static member stelem<'TElement>() = Emit.EmitType(OpCodes.Stelem, typeof<'TElement>)
+    static member stelem (ty : System.Type) = Emit.EmitType(OpCodes.Stelem, ty)
+    static member stelem (ty : TypeBuilder) = Emit.EmitType(OpCodes.Stelem, ty)
     static member stelem_i = Emit.EmitOp(OpCodes.Stelem_I)
     static member stelem_i1 = Emit.EmitOp(OpCodes.Stelem_I1)
     static member stelem_i2 = Emit.EmitOp(OpCodes.Stelem_I2)

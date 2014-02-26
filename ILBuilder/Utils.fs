@@ -102,7 +102,7 @@ type internal Emit private () =
         fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, cons) 
 
     static member EmitConstructor(opcode, cons : ConstructorBuilder) =
-        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, cons) 
+        fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, cons :> ConstructorInfo)
 
     static member EmitField(opcode, field) =
         fun (u : Universe, il : ILGenerator) -> il.Emit(opcode, Utils.ofFieldInfo u field)

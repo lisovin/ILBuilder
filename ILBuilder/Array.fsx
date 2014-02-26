@@ -7,59 +7,36 @@
 open System
 open ILBuilder
 
-(*
-let createArray n = 
-    il {
-        for n in 0..n do
-            dup
-            ldc_i4 n
-            ldc_i4 n
-            stelem_i4
-    }
-*)
-let initArray<'TElement> n (f : int -> 'TElement) =
-    let ld, stelem = 
-        match typeof<'TElement> with
-        | ty when ty = typeof<bool> -> 
-            (fun i -> IL.ldc_bool (f i |> box |> unbox)),
-            IL.stelem_i
-        | ty when ty = typeof<int32> -> 
-            (fun i -> IL.ldc_i4 (f i |> box |> unbox)),
-            IL.stelem_i
-        | ty when ty = typeof<int64> -> 
-            (fun i -> IL.ldc_i8 (f i |> box |> unbox)),
-            IL.stelem_i
-        | ty when ty = typeof<string> -> 
-            (fun i -> IL.ldstr (f i |> box |> unbox)),
-            IL.stelem_ref
-        | ty -> 
-            failwithf "Not supported type of element '%s'" ty.FullName
-
-    il {
-        let! loc = IL.declareLocal<'TElement[]>()
-        do! IL.ldc_i4 n
-        do! IL.newarr typeof<'TElement>
-        do! IL.stloc loc
-        for i in 0..n-1 do
-            do! IL.ldloc loc
-            do! IL.ldc_i4 i
-            do! ld i
-            do! stelem
-        do! IL.ldloc loc    
-    }
+let props = ["Foo"; "Bar"]
 
 assembly {
     do! publicType ("Test") {
-        do! publicDefaultEmptyConstructor
+        let! cons = publicDefaultEmptyConstructor
+        printfn "-->const: %A" cons
 
+        let fields = ref []
+        let! prop = publicAutoProperty<string> "XYZ" { set; get; }
+        //printfn "--->a prop: %A" prop
+        for p in props do
+            let! prop = publicAutoProperty<string> p { set; get; }
+            printfn "--->prop: %A" prop
+            fields := prop :: !fields
+
+        printfn "--->fields: %A" fields
         let n = 5
-        do! publicStaticMethod<string[]> "DoIt" [] {
-            do! initArray<System.String> 5 (fun i -> sprintf "Foo %d" i)
+        yield! publicMethod<string[]> "DoIt" [] {
+            printfn "--->generate DoIt"
+            //do! emitArray props
+            yield! initArrayWithPropValues (!fields)
 
-            do! IL.ret
-        }
+            //do! IL.call (typeof<Console>.GetMethod("WriteLine", [| typeof<obj> |]))
+            yield! IL.ret
+        } 
     }
 } |> saveAssembly @"c:\temp\test.dll"
 
 #r @"c:\temp\test.dll"
-Test.DoIt()
+let t = Test()
+t.Bar <- "Abc"
+t.Foo <- "Xyz"
+t.DoIt()

@@ -9,6 +9,16 @@ open IKVM.Reflection.Emit
 open ILBuilder
 open ILBuilder.Utils
 
+open Microsoft.FSharp.Quotations
+open Microsoft.FSharp.Quotations.Patterns
+
+type FooBar() = 
+    member val Foo = "" with get, set
+    member val Bar = "" with get, set
+
+    member __.DoIt() =  
+        [|__.Foo; __.Bar|]
+
 type BuilderType =
 | ThisType
 | ClrType of System.Type
@@ -26,49 +36,45 @@ type IKVMILBuilder() =
             let defines = definesBinding(bound)
             defines(u, ilg)
 
-    let doBind define definesBinding = 
-        fun (u : Universe, ilg : ILGenerator) ->
-            let result = define(u, ilg)
-            let defines = definesBinding()
-            defines(u, ilg)
-
     // let!
     member __.Bind(define, definesBinding) = letBind define definesBinding 
 
     // do!
-    member __.Bind(define : Universe * ILGenerator -> #MemberInfo, definesBinding) = doBind define definesBinding
+   // member __.Bind(define, definesBinding) = doBind define definesBinding
+
+    member __.YieldFrom(x) = fun (u : Universe, ilg : ILGenerator) -> x(u, ilg) |> ignore
 
     member __.Return(x) = fun (u : Universe, ilg: ILGenerator) -> x
 
-    member __.Zero() = ()//fun (u : Universe, ilg : ILGenerator) -> ()
+    member __.Zero() = fun (u : Universe, ilg : ILGenerator) -> ()
 
-    member __.Delay(f) = f()
+    member __.Delay(f) = 
+        fun (u : Universe, ilg : ILGenerator) -> 
+            let g = f()
+            g(u, ilg)
 
-    member __.Combine(f1, f2) =
-        fun (u : Universe, ilg : ILGenerator) ->
-            f1(u, ilg)    
-            f2(u, ilg)
+    member __.Combine(f1, f2) = __.Bind(f1, fun () -> f2)
 
     member __.For(xs, f) = 
-        fun (u : Universe, ilg : ILGenerator) ->
-            for x in xs do
-                let emit = f(x)
-                emit(u, ilg)
+        xs |> Seq.fold  (fun acc x -> __.Bind(acc, fun () -> f x)) (__.Zero())
 
-    member __.Run(f : Universe * ILGenerator -> unit) = 
+    member __.Run(f) = 
         fun (u : Universe, il : ILGenerator) ->
-            f (u, il)
+            f(u, il)
+            //g()
+            //g()
         
 type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?export : string * int) = 
     inherit IKVMILBuilder()
 
-    member __.Run(f : Universe * ILGenerator -> unit) = 
+    member __.Run(f) = 
         fun (u : Universe, tb : TypeBuilder) ->
             let methodBuilder = tb.DefineMethod(name, atts)
             methodBuilder.SetReturnType(returnType |> BuilderType.ToGenType u tb.DeclaringType)
             methodBuilder.SetParameters(parameterTypes |> Array.map (BuilderType.ToGenType u tb.DeclaringType))
             let il = methodBuilder.GetILGenerator()
-            f (u, il)
+            f (u, il) |> ignore
+            //g() |> ignore
             match export with
             |Some (name, n) -> methodBuilder.__AddUnmanagedExport(name, n)
             |_ -> ()
@@ -143,42 +149,29 @@ type IKVMPropertyBuilder(name : string, atts, returnType, parameterTypes) =
             f(u, tb, pb) |> ignore
             pb
             
-type GenTypeBuilder(name, atts) = 
+type IKVMTypeBuilder(name, atts) = 
     let letBind define definesBinding = 
         fun (u : Universe, tb : TypeBuilder) ->
-            let bound = define(u, tb) 
-            let defines :  Universe * TypeBuilder -> unit = definesBinding(bound)
+            let bound = define(u, tb)
+            let defines = definesBinding(bound)
             defines(u, tb)
 
-    let doBind define definesBinding = 
-        fun (u : Universe, tb : TypeBuilder) ->
-            let result = define(u, tb)
-            let defines :  Universe * TypeBuilder -> unit = definesBinding()
-            defines(u, tb)
-        
-    // let!
-    member __.Bind(define : Universe * TypeBuilder -> ConstructorBuilder, definesBinding) = letBind define definesBinding
-    member __.Bind(define : Universe * TypeBuilder -> IKVMMethodBuilder, definesBinding) = letBind define definesBinding 
+    member __.Bind(define : Universe * TypeBuilder -> 'a, definesBinding) = letBind define definesBinding
 
-    // do!
-    member __.Bind(define, definesBinding) = doBind define definesBinding
-    
+    member __.YieldFrom(x) = fun (u : Universe, tb : TypeBuilder) -> x(u, tb) |> ignore
+
     member __.Return(x) = fun (u : Universe, tb : TypeBuilder) -> x
 
     member __.Zero() = fun (u : Universe, tb : TypeBuilder) -> ()
 
-    member __.Delay(f) = f()
-
-    member __.Combine(f1, f2) =
+    member __.Delay(f) =
         fun (u : Universe, tb : TypeBuilder) ->
-            f1(u, tb)    
-            f2(u, tb)
+            let g = f()
+            g (u, tb)
 
-    member __.For(xs, f) = 
-        fun (u : Universe, tb : TypeBuilder) ->
-            for x in xs do
-                let define = f(x)
-                define(u, tb)
+    member __.Combine(f1, f2) = __.Bind(f1, fun () -> f2)
+
+    member __.For(xs, f) = xs |> Seq.fold  (fun acc x -> __.Bind(acc, fun () -> f x)) (__.Zero())
 
     member __.Run(f) =   
         fun (universe : Universe, moduleBuilder : ModuleBuilder) ->
@@ -262,9 +255,9 @@ module Helpers =
     (*
      * Types
      *)
-    let publicType typeName = GenTypeBuilder(typeName, TypeAttributes.Public)
+    let publicType typeName = IKVMTypeBuilder(typeName, TypeAttributes.Public)
 
-    let internalType typeName = GenTypeBuilder(typeName, TypeAttributes.NotPublic)
+    let internalType typeName = IKVMTypeBuilder(typeName, TypeAttributes.NotPublic)
 
     let nestedPublicType typeName = IKVMNestedTypeBuilder(typeName, TypeAttributes.NestedPublic)
 
@@ -373,3 +366,72 @@ module Helpers =
         let ab = f (universe, assemblyPath)
         let name = ab.GetName().Name + ".dll"
         ab.Save(name)
+
+    (*
+     * Helpers
+     *)
+    let initArray<'TElement> count (initializer : int -> 'TElement) =
+        let ldelem, stelem = 
+            match typeof<'TElement> with
+            | ty when ty = typeof<bool> -> 
+                (fun i -> IL.ldc_bool (initializer i |> box |> unbox)),
+                IL.stelem_i
+            | ty when ty = typeof<int32> -> 
+                (fun i -> IL.ldc_i4 (initializer i |> box |> unbox)),
+                IL.stelem_i
+            | ty when ty = typeof<int64> -> 
+                (fun i -> IL.ldc_i8 (initializer i |> box |> unbox)),
+                IL.stelem_i
+            | ty when ty = typeof<string> -> 
+                (fun i -> IL.ldstr (initializer i |> box |> unbox)),
+                IL.stelem_ref
+            | ty -> 
+                failwithf "Not supported type of element '%s'" ty.FullName
+
+        il {
+            let! loc = IL.declareLocal<'TElement[]>()
+            do! IL.ldc_i4 count
+            do! IL.newarr typeof<'TElement>
+            do! IL.stloc loc
+            for i in 0..count-1 do
+                do! IL.ldloc loc
+                do! IL.ldc_i4 i
+                do! ldelem i
+                do! stelem
+            do! IL.ldloc loc    
+        }
+    
+    let emitArray (xs : #seq<'TElement>) = 
+        let arr = xs |> Seq.toArray
+        initArray arr.Length (fun i -> arr.[i])
+
+    let initArrayWithIL<'TElement when 'TElement : not struct> (initializers : seq<Universe * ILGenerator -> unit>) = 
+        let instrs = initializers |> Seq.toArray
+        let count = instrs.Length
+        il {
+            do! IL.ldc_i4 count
+            do! IL.newarr typeof<'TElement>
+            for i in 0..count-1 do
+                do! IL.dup
+                do! IL.ldc_i4 i
+                do! instrs.[i]
+                do! IL.stelem typeof<'TElement>
+        }
+        
+    let initArrayWithPropValues (props : seq<#PropertyInfo>) = 
+        let props = props |> Seq.toArray
+        let count = props.Length
+        let propType = props.[0].PropertyType
+        il {
+            do! IL.ldc_i4 count
+            do! IL.newarr propType
+            for i in 0..count-1 do
+                do! IL.dup
+                do! IL.ldc_i4 i
+                do! IL.ldarg_0
+                let prop = props.[i]
+                do! IL.callvirt (prop.GetGetMethod())
+                do! IL.stelem propType
+        }
+
+    let declaringType(u : Universe, tb : TypeBuilder) = tb.DeclaringType
