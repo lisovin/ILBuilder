@@ -43,3 +43,9 @@ assembly {
         }
 } |> saveAssembly  @"c:\temp\MyAssembly.dll"
 ```
+
+Examples:
+1. Reference generated type, property, local, method, etc. from within the expression (e.g. let!)
+2. yield! vs. do!
+3. `il` to build parts of method's IL 
+4. emitArray helper methods
