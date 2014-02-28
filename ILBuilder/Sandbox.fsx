@@ -1,36 +1,29 @@
-﻿//#r "bin/Debug/ILBuilder.dll"
-#r "bin/Debug/IKVM.Reflection.dll"
-//#load "Utils.fs"
-//#load "Builders.fs"
+﻿#r "bin/Debug/IKVM.Reflection.dll"
+#load "Utils.fs"
+#load "IL.fs"
+#load "Builders.fs"
+
 open System
-//open ILBuilder
+open ILBuilder
 
-type TestBuilder() = 
-    [<CustomOperation("foo", MaintainsVariableSpaceUsingBind = false, AllowIntoPattern = true)>]
-    member __.foo (f, num : int) = 
-        sprintf "foo %d" num
+assembly {
+    do! publicType "Foo" {
+        yield! publicMethod<string> "Bar" [] {
+            do! IL.ldstr "adsf"
+            try
+                do! IL.ldstr "qwer"
+                do! IL.ldstr "-->Success"
+                do! IL.call (typeof<Console>.GetMethod("WriteLine", [| typeof<string> |])) 
+            finally 
+                do! fun (u, il) -> () 
+//            with 
+  //              | ex -> do! IL.ldstr (sprintf "-->caugh exception: %A" ex)
+                //fun () -> 
+                //    do! IL.ldstr "-->Finally"
+                //    do! IL.call (typeof<Console>.GetMethod("WriteLine", [| typeof<string> |])) 
+        }
+    }
+} |> saveAssembly @"c:\temp\foo.dll" 
 
-    [<CustomOperation("bar", MaintainsVariableSpaceUsingBind = true)>]
-    member __.bar (s, num : int) =
-        sprintf "%s\nbar %d" s num
-
-    member __.Bind(f, r) = 
-        let bound = f()
-        r(bound)
-
-    member __.Zero() = ""
-    member __.Return(x) = "ret: "
-    member __.Yield(x) = ""
-    member __.Quote() = ()
-    member __.Run(f) = f 
-
-let test = TestBuilder()
-
-let t = test {
-    foo 5 into g
-    //let! x = fun () -> 3
-    //printfn "%d" x
-    foo x
-    //bar x
-}
-
+#r @"c:\temp\foo.dll"
+(Foo()).Bar()

@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
   <metadata>
     <id>ILBuilder</id>
-    <version>0.1.17</version>
+    <version>0.1.21</version>
     <title>ILBuilder</title>
     <authors>Peter Lisovin</authors>
     <owners>Peter Lisovin</owners>

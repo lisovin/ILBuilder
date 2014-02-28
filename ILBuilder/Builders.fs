@@ -13,11 +13,11 @@ open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 
 type FooBar() = 
-    member val Foo = "" with get, set
-    member val Bar = "" with get, set
-
     member __.DoIt() =  
-        [|__.Foo; __.Bar|]
+        try
+            printfn "foo"
+        finally
+            printfn "bar"
 
 type BuilderType =
 | ThisType
@@ -57,10 +57,10 @@ type IKVMILBuilder() =
 
     member __.For(xs, f) = 
         xs |> Seq.fold  (fun acc x -> __.Bind(acc, fun () -> f x)) (__.Zero())
-
-    member __.Run(f) = 
+        
+    member __.Run(f : Universe * ILGenerator -> 'a) = f (*
         fun (u : Universe, il : ILGenerator) ->
-            f(u, il)
+            f(u, il) *)
             //g()
             //g()
         
@@ -370,68 +370,77 @@ module Helpers =
     (*
      * Helpers
      *)
-    let initArray<'TElement> count (initializer : int -> 'TElement) =
-        let ldelem, stelem = 
-            match typeof<'TElement> with
-            | ty when ty = typeof<bool> -> 
-                (fun i -> IL.ldc_bool (initializer i |> box |> unbox)),
-                IL.stelem_i
-            | ty when ty = typeof<int32> -> 
-                (fun i -> IL.ldc_i4 (initializer i |> box |> unbox)),
-                IL.stelem_i
-            | ty when ty = typeof<int64> -> 
-                (fun i -> IL.ldc_i8 (initializer i |> box |> unbox)),
-                IL.stelem_i
-            | ty when ty = typeof<string> -> 
-                (fun i -> IL.ldstr (initializer i |> box |> unbox)),
-                IL.stelem_ref
-            | ty -> 
-                failwithf "Not supported type of element '%s'" ty.FullName
-
-        il {
-            let! loc = IL.declareLocal<'TElement[]>()
-            do! IL.ldc_i4 count
-            do! IL.newarr typeof<'TElement>
-            do! IL.stloc loc
-            for i in 0..count-1 do
-                do! IL.ldloc loc
-                do! IL.ldc_i4 i
-                do! ldelem i
-                do! stelem
-            do! IL.ldloc loc    
-        }
-    
-    let emitArray (xs : #seq<'TElement>) = 
-        let arr = xs |> Seq.toArray
-        initArray arr.Length (fun i -> arr.[i])
-
-    let initArrayWithIL<'TElement when 'TElement : not struct> (initializers : seq<Universe * ILGenerator -> unit>) = 
-        let instrs = initializers |> Seq.toArray
-        let count = instrs.Length
-        il {
-            do! IL.ldc_i4 count
-            do! IL.newarr typeof<'TElement>
-            for i in 0..count-1 do
-                do! IL.dup
-                do! IL.ldc_i4 i
-                do! instrs.[i]
-                do! IL.stelem typeof<'TElement>
-        }
-        
-    let initArrayWithPropValues (props : seq<#PropertyInfo>) = 
-        let props = props |> Seq.toArray
-        let count = props.Length
-        let propType = props.[0].PropertyType
-        il {
-            do! IL.ldc_i4 count
-            do! IL.newarr propType
-            for i in 0..count-1 do
-                do! IL.dup
-                do! IL.ldc_i4 i
-                do! IL.ldarg_0
-                let prop = props.[i]
-                do! IL.callvirt (prop.GetGetMethod())
-                do! IL.stelem propType
-        }
 
     let declaringType(u : Universe, tb : TypeBuilder) = tb.DeclaringType
+
+[<AutoOpen>]
+module ILExtensions = 
+    type ILBuilder.IL with 
+        (*
+         *
+         *)
+        static member emitArray<'TElement>(count, initializer : int -> 'TElement) =
+            let ldelem, stelem = 
+                match typeof<'TElement> with
+                | ty when ty = typeof<bool> -> 
+                    (fun i -> IL.ldc_bool (initializer i |> box |> unbox)),
+                    IL.stelem_i
+                | ty when ty = typeof<int32> -> 
+                    (fun i -> IL.ldc_i4 (initializer i |> box |> unbox)),
+                    IL.stelem_i
+                | ty when ty = typeof<int64> -> 
+                    (fun i -> IL.ldc_i8 (initializer i |> box |> unbox)),
+                    IL.stelem_i
+                | ty when ty = typeof<string> -> 
+                    (fun i -> IL.ldstr (initializer i |> box |> unbox)),
+                    IL.stelem_ref
+                | ty -> 
+                    failwithf "Not supported type of element '%s'" ty.FullName
+
+            il {
+                let! loc = IL.declareLocal<'TElement[]>()
+                do! IL.ldc_i4 count
+                do! IL.newarr typeof<'TElement>
+                do! IL.stloc loc
+                for i in 0..count-1 do
+                    do! IL.ldloc loc
+                    do! IL.ldc_i4 i
+                    do! ldelem i
+                    do! stelem
+                do! IL.ldloc loc    
+            }
+    
+        static member emitArray (xs : #seq<'TElement>) = 
+            let arr = xs |> Seq.toArray
+            IL.emitArray(arr.Length, fun i -> arr.[i])
+
+        static member emitArray<'TElement when 'TElement : not struct> (initializers : seq<Universe * ILGenerator -> unit>) = 
+            let instrs = initializers |> Seq.toArray
+            let count = instrs.Length
+            il {
+                do! IL.ldc_i4 count
+                do! IL.newarr typeof<'TElement>
+                for i in 0..count-1 do
+                    do! IL.dup
+                    do! IL.ldc_i4 i
+                    do! instrs.[i]
+                    do! IL.stelem typeof<'TElement>
+            }
+        
+        static member emitArrayOfValues<'TElement> (props : seq<PropertyBuilder>) = 
+            let props = props |> Seq.toArray
+            let count = props.Length
+            let propType = typeof<'TElement>
+            il {
+                do! IL.ldc_i4 count
+                do! IL.newarr propType
+                for i in 0..count-1 do
+                    do! IL.dup
+                    do! IL.ldc_i4 i
+                    do! IL.ldarg_0
+                    let prop = props.[i]
+                    do! IL.callvirt (prop.GetGetMethod())
+                    do! IL.box prop.PropertyType
+                    //do! IL.castclass propType
+                    do! IL.stelem propType
+            }

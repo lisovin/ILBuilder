@@ -23,6 +23,8 @@ let dis assemblyPath =
 dis @"c:\temp\test.dll"
 File.ReadAllText(@"C:\temp\test.il")
 
+dis @"C:\Dev\Projects\MicroORMTypeProvider\MicroORMTypeProvider\bin\Debug\MicroORMTypeProvider.dll"
+
 
 dis @"c:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\ILBuilder.dll"
 File.ReadAllText(@"c:\Dev\Projects\ILBuilder\ILBuilder\bin\Debug\ILBuilder.il")
