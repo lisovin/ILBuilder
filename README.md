@@ -45,7 +45,8 @@ assembly {
 ```
 
 Examples:
-1. Reference generated type, property, local, method, etc. from within the expression (e.g. let!)
-2. yield! vs. do!
-3. `il` to build parts of method's IL 
-4. emitArray helper methods
+* Reference generated type, property, local, method, etc. from within the expression (e.g. let!)
+* yield! vs. do!
+* `il` to build parts of method's IL 
+* emitArray helper methods
+* if/else helpers
