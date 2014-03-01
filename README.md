@@ -44,6 +44,8 @@ assembly {
 } |> saveAssembly  @"c:\temp\MyAssembly.dll"
 ```
 
+Used by [MicroORMTypeProvider](https://github.com/lisovin/MicroORMTypeProvider)
+
 Examples:
 * Reference generated type, property, local, method, etc. from within the expression (e.g. let!)
 * yield! vs. do!
