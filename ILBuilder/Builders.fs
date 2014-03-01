@@ -13,11 +13,14 @@ open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 
 type FooBar() = 
-    member __.DoIt() =  
-        try
+    member __.DoIt(x) =  
+        if x = 123
+        then 
             printfn "foo"
-        finally
+            1
+        else
             printfn "bar"
+            2
 
 type BuilderType =
 | ThisType
@@ -70,8 +73,8 @@ type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?export 
     member __.Run(f) = 
         fun (u : Universe, tb : TypeBuilder) ->
             let methodBuilder = tb.DefineMethod(name, atts)
-            methodBuilder.SetReturnType(returnType |> BuilderType.ToGenType u tb.DeclaringType)
-            methodBuilder.SetParameters(parameterTypes |> Array.map (BuilderType.ToGenType u tb.DeclaringType))
+            methodBuilder.SetReturnType(returnType |> BuilderType.ToGenType u methodBuilder.DeclaringType)
+            methodBuilder.SetParameters(parameterTypes |> Array.map (BuilderType.ToGenType u methodBuilder.DeclaringType))
             let il = methodBuilder.GetILGenerator()
             f (u, il) |> ignore
             //g() |> ignore
@@ -444,3 +447,35 @@ module ILExtensions =
                     //do! IL.castclass propType
                     do! IL.stelem propType
             }
+
+
+        static member ilprintf format = 
+            let il = IKVMILBuilder()
+            Printf.ksprintf (fun s -> il {
+                do! IL.ldstr s
+                do! IL.call (typeof<Console>.GetMethod("WriteLine", [| typeof<string> |]))
+            }) format
+
+        static member ifThen condition thenBody = 
+            il {
+                let! notTrue = IL.defineLabel
+                do! condition notTrue
+                do! thenBody
+                do! IL.br_s notTrue
+                do! IL.markLabel notTrue
+            }
+
+        static member ifThenElse condition thenBody elseBody =    
+            il {
+                let! notTrue = IL.defineLabel
+                let! endIf = IL.defineLabel
+                do! condition notTrue
+                do! thenBody
+                do! IL.br_s endIf
+                do! IL.markLabel notTrue
+                do! elseBody
+                do! IL.markLabel endIf
+            }
+    
+
+
