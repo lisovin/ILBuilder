@@ -13,10 +13,8 @@ open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 
 type FooBar private () = 
-    new (s : string) = 
-        let s = "adsf"
+    do  let s = "adsf"
         printfn "--->%s" s
-        FooBar()
 
     member __.Deleg(s : string) = "string"
     member __.Deleg(i : int) = "int"
@@ -103,6 +101,7 @@ type IKVMConstructorBuilder(atts, parameterTypes, ?customAttribute) =
 
             let il = cb.GetILGenerator()
             f (u, il) |> ignore
+            cb
             
 type PropertyAccessor = Get | Set
 

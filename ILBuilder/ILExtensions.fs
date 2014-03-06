@@ -136,6 +136,18 @@ module ILExtensions =
         (*
          * Constructors
          *)
+        static member privateConstructor ([<ParamArray>] parameterTypes : System.Type[]) = 
+            IKVMConstructorBuilder(MethodAttributes.Private, parameterTypes |> Array.map ClrType)
+
+        static member privateConstructor ([<ParamArray>] parameterTypes : Type[]) = 
+            IKVMConstructorBuilder(MethodAttributes.Private, parameterTypes |> Array.map GenType)
+
+        static member privateConstructor = 
+            IKVMConstructorBuilder(MethodAttributes.Private, [||])
+
+        static member privateDefaultConstructor (u : Universe, tb : TypeBuilder) =
+            tb.DefineDefaultConstructor(MethodAttributes.Private)
+
         static member publicConstructor ([<ParamArray>] parameterTypes : System.Type[]) = 
             IKVMConstructorBuilder(MethodAttributes.Public, parameterTypes |> Array.map ClrType)
 

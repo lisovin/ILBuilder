@@ -8,7 +8,7 @@
 open System
 open ILBuilder
 
-let tables = ["FooBar"]
+let tables = ["FooBar2"]
 let toTableName name = name
 
 (*
@@ -26,9 +26,12 @@ assembly {
         
         let! ty = IL.publicType tableName {
             //printfn "doing Table_%d" n
-            yield! IL.publicDefaultConstructor
+            //yield! IL.publicDefaultConstructor
 
             yield! IL.publicConstructor {
+                printfn "--->constructor foobar"
+                do! IL.ldarg_0
+                do! IL.callvirt (typeof<obj>.GetConstructor([||]))
                 do! IL.ret
             }
 
@@ -87,6 +90,7 @@ assembly {
 } |> saveAssembly @"c:\temp\test.dll"
 
 #r @"c:\temp\test.dll"
+FooBar()
 
 Foo.Table2.Test()
 open Microsoft.FSharp.Quotations
