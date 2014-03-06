@@ -41,4 +41,4 @@ assembly {
 #r @"c:\temp\test.dll"
 let t = Test()
 t.IfThen(1)
-t.IfThenElse(0)
+t.IfThenElse(1)

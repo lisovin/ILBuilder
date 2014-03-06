@@ -2,15 +2,18 @@
 #load "Utils.fs"
 #load "IL.fs"
 #load "Builders.fs"
+#load "ILExtensions.fs"
 
 open System
 open ILBuilder
 
 assembly {
-    do! publicType "Foo" {
-        let! cons = publicDefaultEmptyConstructor
+    yield! IL.publicType "Foo" {
+        let! cons = IL.publicDefaultConstructor
+        let! thisType = IL.thisType
+        printfn "--->thisType: %A" thisType
 
-        yield! publicStaticMethodOfType ThisType "GetInstance" [] {
+        yield! IL.publicStaticMethod(thisType, "GetInstance") {
             do! IL.newobj cons
             do! IL.ret
         }
