@@ -90,7 +90,7 @@ assembly {
 } |> saveAssembly @"c:\temp\test.dll"
 
 #r @"c:\temp\test.dll"
-FooBar()
+FooBar2()
 
 Foo.Table2.Test()
 open Microsoft.FSharp.Quotations

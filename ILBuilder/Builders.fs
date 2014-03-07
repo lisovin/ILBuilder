@@ -12,21 +12,10 @@ open ILBuilder.Utils
 open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 
-type FooBar private () = 
-    do  let s = "adsf"
-        printfn "--->%s" s
+type FooBar() = 
+    interface IDisposable with
+        member __.Dispose() = ()
 
-    member __.Deleg(s : string) = "string"
-    member __.Deleg(i : int) = "int"
-
-    member __.DoIt(o : obj) = 
-        if o.GetType() = typeof<string>
-        then __.Deleg(o :?> string)
-        else if o.GetType() = typeof<int>
-        then __.Deleg(o :?> int)
-        else "nothing"
-        
-            
 type BuilderType =
 | ClrType of System.Type
 | GenType of Type
@@ -62,7 +51,7 @@ type IKVMILBuilder() =
         
     member __.Run(f : Universe * ILGenerator -> 'a) = f
         
-type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?customAttribute, ?export : string * int) = 
+type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?customAttribute, ?overrideMethod, ?export : string * int) = 
     inherit IKVMILBuilder()
 
     member __.Run(f) = 
@@ -83,6 +72,10 @@ type IKVMMethodBuilder(name : string, atts, returnType, parameterTypes, ?customA
             |Some (name, n) -> methodBuilder.__AddUnmanagedExport(name, n)
             |_ -> ()
             
+            match overrideMethod with
+            | Some overrideMethod -> tb.DefineMethodOverride(methodBuilder, overrideMethod |> ofMethodInfo u)
+            | _ -> ()
+
             methodBuilder
 
 type IKVMConstructorBuilder(atts, parameterTypes, ?customAttribute) = 
@@ -177,7 +170,7 @@ type IKVMPropertyBuilder(name : string, atts, returnType, parameterTypes) =
             f(u, tb, pb) |> ignore
             pb
             
-type IKVMTypeBuilder(name, atts, ?customAttribute) = 
+type IKVMTypeBuilder(name, atts, ?interfaces, ?customAttribute) = 
     let letBind define definesBinding = 
         fun (u : Universe, tb : TypeBuilder) ->
             let bound = define(u, tb)
@@ -204,6 +197,13 @@ type IKVMTypeBuilder(name, atts, ?customAttribute) =
     member __.Run(f) =   
         fun (universe : Universe, moduleBuilder : ModuleBuilder) ->
             let typeBuilder = moduleBuilder.DefineType(name, atts)
+            
+            match interfaces with
+            | Some interfaces -> 
+                for i in interfaces do
+                    typeBuilder.AddInterfaceImplementation (i |> BuilderType.ToGenType universe)
+            | _ -> ()
+
             match customAttribute with
             | Some ci ->
                 let cab = CustomAttributeBuilder(ci |> ofConstructorInfo universe, [||])

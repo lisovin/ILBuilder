@@ -59,6 +59,7 @@
     <None Include="Sandbox.fsx" />
     <None Include="IfElse.fsx" />
     <None Include="Properties.fsx" />
+    <None Include="Interface.fsx" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>

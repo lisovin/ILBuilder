@@ -127,9 +127,17 @@ module ILExtensions =
 
         static member internalType typeName = IKVMTypeBuilder(typeName, TypeAttributes.NotPublic)
 
+        static member publicType (typeName, [<ParamArray>] interfaceTypes) = IKVMTypeBuilder(typeName, TypeAttributes.Public, interfaces = (interfaceTypes |> Array.map ClrType))
+
+        static member internalType (typeName, [<ParamArray>] interfaceTypes) = IKVMTypeBuilder(typeName, TypeAttributes.NotPublic, interfaces = (interfaceTypes |> Array.map ClrType))
+
+        static member publicType (typeName, [<ParamArray>] interfaceTypes) = IKVMTypeBuilder(typeName, TypeAttributes.Public, interfaces = (interfaceTypes |> Array.map GenType))
+
+        static member internalType (typeName, [<ParamArray>] interfaceTypes) = IKVMTypeBuilder(typeName, TypeAttributes.NotPublic, interfaces = (interfaceTypes |> Array.map GenType))
+
         static member extensionsType typeName = 
             let ci = typeof<System.Runtime.CompilerServices.ExtensionAttribute>.GetConstructor([||])
-            IKVMTypeBuilder(typeName, TypeAttributes.Public ||| TypeAttributes.Sealed, ci)
+            IKVMTypeBuilder(typeName, TypeAttributes.Public ||| TypeAttributes.Sealed, customAttribute = ci)
 
         static member nestedPublicType typeName = IKVMNestedTypeBuilder(typeName, TypeAttributes.NestedPublic)
 
@@ -329,7 +337,10 @@ module ILExtensions =
             let ci = typeof<System.Runtime.CompilerServices.ExtensionAttribute>.GetConstructor([||])
             IKVMMethodBuilder(methodName, MethodAttributes.Public ||| MethodAttributes.Static, returnType, parameters |> Seq.toArray, ci)
             
-            
+        static member overrideMethod (methodInfo : System.Reflection.MethodInfo) =
+            let returnType = ClrType methodInfo.ReturnType
+            let parameters = methodInfo.GetParameters() |> Array.map (fun pi -> ClrType pi.ParameterType)
+            IKVMMethodBuilder(methodInfo.Name, MethodAttributes.Private ||| MethodAttributes.HideBySig ||| MethodAttributes.NewSlot ||| MethodAttributes.Virtual ||| MethodAttributes.Final, returnType, parameters, overrideMethod = methodInfo)
     
         (*
          * Fields
